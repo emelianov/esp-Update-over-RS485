@@ -13,6 +13,7 @@ union packetFrame {
 	packetHeader header;
 	uint8_t raw[FRAME_LENGTH];
 };
+
 enum status_t {RS_IDLE, RS_SEND, RS_WAIT, RS_RECEIVE, RS_READY, RS_ERROR};
 template <typename T> class RSerial {
 public:
@@ -20,19 +21,30 @@ public:
 		_serial = serial;
 	}
 	void taskSlave() {
-		if (_state == RS_READY) {
-			_state = prepareReply();
-			_state = send();
-		}
+		//if (_state == RS_READY) {
+		//	_state = prepareReply();
+		//	_state = send();
+		//}
 		_state = receive();
 	}
 	status_t taskMaster() {
-		return send();
+		if (send() == RS_IDLE) _pos = 0;
 	}
 	uint32_t crc(uint16_t len) {
-		return 0;
+		return 0x11223344;
 	}
-
+	bool fillFrame(uint8_t com, char* data) {
+		uint16_t len = strlen(data);
+		if (len > FRAME_LENGTH - sizeof(packetHeader)) return false;
+		memcpy(_reply.header.sig, _sig, MAGIC_SIG_LENGTH);
+		_reply.header.command = com;
+		_reply.header.dataSize = len + sizeof(uint32_t);
+		memcpy(&_reply.raw[sizeof(packetHeader)], data, len);
+		uint32_t curCrc = crc(len + sizeof(packetHeader));
+		memcpy(&_reply.raw[len + sizeof(packetHeader)], &curCrc, sizeof(uint32_t));
+		_pos = 0;
+		return true;
+	}
 protected:
 	
 	uint8_t		_id = 0;
@@ -49,14 +61,20 @@ protected:
 		status_t state = RS_IDLE;
 		while (_serial->available()) {
 			_buf.raw[_pos] = _serial->read();
+			Serial.print(_buf.raw[_pos], HEX);
+			Serial.print(" ");
 			if (_pos < MAGIC_SIG_LENGTH && _buf.raw[_pos] != _sig[_pos]) {
 				_pos = 0;
+				Serial.println();
 				continue;
 			}
 			_pos++;
-			if ((_pos >= sizeof(packetHeader) && _pos >= _buf.header.dataSize + sizeof(packetHeader)) || _pos >= FRAME_LENGTH) {
+			
+			if ((_pos > sizeof(packetHeader) && _pos >= _buf.header.dataSize + sizeof(packetHeader)) || _pos >= FRAME_LENGTH) {
 				_serial->flush();
-				if (_buf.header.dataSize > FRAME_LENGTH || crc(_buf.header.dataSize) != (uint32_t)_buf.raw[_buf.header.dataSize + sizeof(packetHeader) - sizeof(uint32_t)]) {
+				_pos = 0;
+				Serial.println();
+				if (_buf.header.dataSize >= FRAME_LENGTH || crc(_buf.header.dataSize) != (uint32_t)_buf.raw[_buf.header.dataSize + sizeof(packetHeader) - sizeof(uint32_t)]) {
 					state = RS_ERROR;
 					break;
 				}
@@ -67,8 +85,9 @@ protected:
 		return state;
 	}
 	status_t send() {
-		while (_pos < _reply.header.dataSize + sizeof(packetHeader)) {
+		while (_pos < sizeof(packetHeader) + _reply.header.dataSize) {
 			_serial->write(_reply.raw[_pos]);
+			//_serial->print(_reply.raw[_pos], HEX);
 			_pos++;
 		}
 		return RS_IDLE;

@@ -1,21 +1,28 @@
 #include <RSerial.h>
 #include <SoftwareSerial.h>
 
-#define RX D1
-#define TX D4
-#define ENA D2
+#define RX D2
+#define TX D3
+#define ENA D4
 
 SoftwareSerial SSerial(RX,TX); 
-RSerial<HardwareSerial> sl(&Serial); 
+RSerial<SoftwareSerial> sl(&SSerial); 
 
 void setup() {
-  // put your setup code here, to run once:
-
+  pinMode(RX, INPUT);
+  pinMode(TX, OUTPUT);
+  pinMode(ENA, OUTPUT);
+  digitalWrite(ENA, HIGH);
+  pinMode(D1, OUTPUT);
+  digitalWrite(D1, HIGH);
+  Serial.begin(74880);
+  SSerial.begin(38400);
+  if (sl.fillFrame(0xAA, "TEST")) Serial.println("Frame prepared");
 }
 
 void loop() {
-  pinMode(ENA, OUTPUT);
-  digitalWrite(ENA, LOW);
-  sl.taskSlave();
-  delay(100);
+  Serial.print("Sending...");
+  sl.taskMaster();
+  Serial.println("done.");
+  delay(5000);
 }
