@@ -1,3 +1,5 @@
+#pragma once
+
 #define MAGIC_SIG {0xFF, 0xEE, 0xDD, 0xCC}
 #define MAGIC_SIG_LENGTH 4
 #define FRAME_LENGTH 1024
@@ -5,7 +7,7 @@
 #define RESPONSE_TIMEOUT 10000
 #define MAX_SEND_TIME 10000
 
-//For SoftwareSerial
+//For SoftwareSerial debug
 #define ERX D1
 #define ETX D4
 
@@ -31,6 +33,10 @@ template <typename T> class RSerial {
 public:
 	RSerial(T* serial) {
 		_serial = serial;
+	}
+	RSerial(T* serial, int16_t max485_pin) {
+		_serial = serial;
+		_sendPin = max485_pin;
 	}
 	void taskSlave() {
 		switch (_state) {
@@ -91,8 +97,7 @@ public:
 		return 0x11223344;
 	}
 	status_t send() {
-		digitalWrite(ERX, HIGH);
-		digitalWrite(ETX, HIGH);
+		enableSend();
 		_pos = 0;
 		_retryCount = 0;
 		_state = RS_SEND;
@@ -100,14 +105,12 @@ public:
 	}
 	status_t receive() {
 		_pos = 0;
-		digitalWrite(ERX, LOW);
-		digitalWrite(ETX, LOW);
+		enableReceive();
 		_state= RS_IDLE;
 		return _state;
 	}
 	status_t processPacketMaster() {
 		debugPrintPacket();
-		receive();
 		return RS_IDLE;
 	}
 	status_t processPacketSlave() {
@@ -128,8 +131,11 @@ public:
 		}
 		Serial.println();
 	}
-	bool fillFrame(uint8_t com, char* data) {
-		uint16_t len = strlen(data);
+	bool fillFrame(uint8_t com, const char* data) {
+		return fillFrame(com, (uint8_t*)data, strlen(data));
+	}
+	bool fillFrame(uint8_t com, const uint8_t* data, uint16_t len) {
+		//uint16_t len = strlen(data);
 		if (len > FRAME_LENGTH - sizeof(packetHeader)) return false;
 		memcpy(_reply.header.sig, _sig, MAGIC_SIG_LENGTH);
 		_reply.header.command = com;
@@ -140,6 +146,10 @@ public:
 		_pos = 0;
 		return true;
 	}
+	template <typename R> bool fillFrame(uint8_t com, const R &data) {
+		return fillFrame(com, (uint8_t*)data, sizeof(data));
+	}
+
 protected:
 	uint32_t	_start;
 	uint8_t		_id = 0;
@@ -150,8 +160,21 @@ protected:
 	packetFrame	_buf;
 	packetFrame	_reply;
 	T*			_serial;
-	status_t prepareReply() {
-		return RS_SEND;
+	uint16_t	_sendPin = -1;	
+//	status_t prepareReply() {
+//		return RS_SEND;
+//	}
+	void enableSend() {
+		digitalWrite(ERX, HIGH);//For SoftwareSerial debug
+		digitalWrite(ETX, HIGH);//For SoftwareSerial debug
+		if (_sendPin >= 0)
+			digitalWrite(_sendPin, HIGH);
+	}
+	void enableReceive() {
+		digitalWrite(ERX, LOW);//For SoftwareSerial debug
+		digitalWrite(ETX, LOW);//For SoftwareSerial debug
+		if (_sendPin >= 0)
+			digitalWrite(_sendPin, LOW);
 	}
 	uint32_t extractCrc() {
 		uint32_t cr = _buf.raw[_buf.header.dataSize + sizeof(packetHeader) - sizeof(uint32_t) + 3];
@@ -164,6 +187,7 @@ protected:
 		return cr;
 	}
 	status_t receiving() {
+	Serial.print(".");
 		uint32_t start = millis();
 digitalWrite(ERX, LOW);
 digitalWrite(ETX, LOW);
@@ -172,8 +196,8 @@ digitalWrite(ETX, LOW);
 			//if (start - millis() > MAX_SEND_TIME)
 			//	return RS_RECEIVE;
 			_buf.raw[_pos] = _serial->read();
-			//Serial.print(_buf.raw[_pos], HEX);
-			//Serial.print(" ");
+			Serial.print(_buf.raw[_pos], HEX);
+			Serial.print(" ");
 			if (_pos < MAGIC_SIG_LENGTH && _buf.raw[_pos] != _sig[_pos]) {
 				_pos = 0;
 				Serial.println();
