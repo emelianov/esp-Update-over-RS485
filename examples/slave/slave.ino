@@ -6,7 +6,7 @@
 #define ENA D4
 
 SoftwareSerial SSerial(RX,TX); 
-RSerial<SoftwareSerial> sl(&SSerial); 
+RSerial<SoftwareSerial> sl(&SSerial, D4, D4); 
 
 void setup() {
   pinMode(TX, OUTPUT);
@@ -16,11 +16,9 @@ void setup() {
   digitalWrite(ENA, LOW);
   digitalWrite(D1, LOW);
   Serial.begin(74880);
+  Serial.println("123");
   SSerial.begin(38400);
+  //SSerial.setTransmitEnablePin(ENA);
+  sl.receive();
   Serial.println("Ready");
-}
-
-void loop() {
-  sl.taskSlave();
-  delay(100);
 }

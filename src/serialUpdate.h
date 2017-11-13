@@ -15,8 +15,11 @@ public:
 	SerialUpdate(T* serial, String ver = "") : RSerial<T>(serial) {
 		version = ver;
 	}
+	SerialUpdate(T* serial, uint16_t rx, uint16_t tx, String ver = "") : RSerial<T>(serial, rx, tx) {
+		version = ver;
+	}
 	void begin() {
-		this->fillFrame(GET_VERSION, ":GET");
+		this->fillFrame(GET_VERSION, "GET");
 		this->send();
 	}
 	bool isReady() {
