@@ -5,7 +5,7 @@
 #define FRAME_LENGTH 1024
 #define MAX_RETRY_COUNT	5
 #define RESPONSE_TIMEOUT 10000
-#define MAX_SEND_TIME 1000
+#define MAX_SEND_TIME 2000
 
 //For SoftwareSerial debug
 #define ERX D1
@@ -27,7 +27,7 @@ union packetFrame {
 	uint8_t raw[FRAME_LENGTH];
 };
 
-enum status_t {RS_IDLE, RS_SEND, RS_WAIT, RS_OK, RS_RECEIVE, RS_READY, RS_ERROR, RS_TIMEOUT, RS_FAILED};
+enum status_t {RS_IDLE, RS_SEND, RS_WAIT, RS_OK, RS_RECEIVE, RS_READY, RS_ERROR, RS_TIMEOUT, RS_FAILED, RS_DONE};
 
 template <typename T> class RSerial {
 public:
@@ -38,33 +38,28 @@ public:
 		_serial = serial;
 		_rxPin = max485_rx;
 		_txPin = max485_tx;
+		digitalWrite(_rxPin, LOW);
 	}
 	void taskSlave() {
 		switch (_state) {
 		case RS_IDLE:
 		case RS_RECEIVE:
-			_state = receiving();
+			_state = receiving(RS_RECEIVE);
 			break;
 		case RS_READY:
-			//delay(100);
-			_state = processPacketSlave();
-			break;
-		case RS_OK:
-			fillFrame(C_OK, "OKOK");
-			_state = send();
-			//delay(100);
+		Serial.println("READY");
+			fillFrame(C_OK,"OK");
+			send();
 			break;
 		case RS_ERROR:
-			fillFrame(C_ERROR, "ERROR");
-			_state = send();
+			fillFrame(C_ERROR,"ERR");
+			send();
 			break;
 		case RS_SEND:
 			_state = sending();
-			if (_state == RS_WAIT) {
-				delay(100);
-				receive();
-				_state = RS_IDLE;
-			}
+			break;
+		case RS_DONE:
+			receive();
 			break;
 		default:
 			;
@@ -76,51 +71,44 @@ public:
 		switch (_state) {
 		case RS_SEND:
 			_state = sending();
-			if (_state == RS_WAIT) {
-				receive();
-				_state = RS_WAIT;
-			}
+			break;
+		case RS_DONE:
+			receive();
+			_state = RS_WAIT;
 			break;
 		case RS_RECEIVE:
 		case RS_WAIT:
-			//enableReceive();
-			//delay(100);
-			//Serial.print(".");
 			if (millis() - _start > MAX_SEND_TIME) {
 				_state = RS_ERROR;
 			} else {
-				_state = receiving(RS_WAIT);
+				_state = receiving(RS_RECEIVE);
 			}
 			break;
 		case RS_READY:
-			_state = processPacketMaster();
+			//_state = processPacketMaster();
+			_state = RS_IDLE;
 			break;
 		case RS_ERROR:
+			send();
+			break;
 		case RS_TIMEOUT:
-			_retryCount++;
-			if (_retryCount < MAX_RETRY_COUNT) {
-				_state = send();
-				break;
-			}
-			//Serial.println("Failed");
-			//receive();
-			_state = RS_FAILED;
 		case RS_IDLE:
 		case RS_FAILED:
-			_start = millis();
-			//Serial.print(_serial->available());
-			break;
 		default:
 			;
 			//Serial.println("Unknown state");
 		}
 	}
-	uint32_t crc(uint16_t len) {
-		return 0x11223344;
+	uint32_t crc(packetFrame* data) {
+		uint32_t cr = 0;
+		for (uint16_t i = 0; i < data->header.dataSize - sizeof(uint32_t); i++) {
+			cr += data->raw[i];
+		}
+		return cr;
 	}
 	status_t send() {
-		_serial->flush();
-		enableSend();
+		//_serial->flush();
+		//enableSend();
 		_pos = 0;
 		_retryCount = 0;
 		_state = RS_SEND;
@@ -132,9 +120,9 @@ public:
 		return _state;
 	}
 	status_t receive() {
-		_serial->flush();
+		//_serial->flush();
 		_pos = 0;
-		enableReceive();
+		//enableReceive();
 		_state = RS_IDLE;
 		_start = millis();
 		return _state;
@@ -173,7 +161,7 @@ public:
 		_reply.header.command = com;
 		_reply.header.dataSize = len + sizeof(uint32_t);
 		memcpy(&_reply.raw[sizeof(packetHeader)], data, len);
-		uint32_t curCrc = crc(len + sizeof(packetHeader));
+		uint32_t curCrc = crc(&_reply);
 		memcpy(&_reply.raw[len + sizeof(packetHeader)], &curCrc, sizeof(uint32_t));
 		_pos = 0;
 		return true;
@@ -202,8 +190,10 @@ protected:
 		//digitalWrite(ETX, HIGH);//For SoftwareSerial debug
 		//return;
 		if (_txPin >= 0) {
+			_serial->flush();
 			digitalWrite(_txPin, HIGH);
-			digitalWrite(_rxPin, HIGH);
+			//digitalWrite(_rxPin, HIGH);
+			delay(100);
 		}
 	}
 	void enableReceive() {
@@ -211,8 +201,10 @@ protected:
 		//digitalWrite(ETX, LOW);//For SoftwareSerial debug
 		//return;
 		if (_rxPin >= 0) {
+			delay(10);
 			digitalWrite(_rxPin, LOW);
 			digitalWrite(_txPin, LOW);
+			_serial->flush();
 		}
 	}
 	uint32_t extractCrc() {
@@ -226,10 +218,6 @@ protected:
 		return cr;
 	}
 	status_t receiving(status_t defaultState = RS_IDLE) {
-//		uint32_t start = millis();
-//digitalWrite(19, LOW);
-//digitalWrite(17, LOW);
-		enableReceive();
 		status_t state = defaultState;
 		//Serial.print(".");
 		while (_serial->available()) {
@@ -249,7 +237,7 @@ protected:
 				_serial->flush();
 				_pos = 0;
 				//Serial.println();
-				if (_buf.header.dataSize >= FRAME_LENGTH || crc(_buf.header.dataSize) != extractCrc()) {
+				if (_buf.header.dataSize >= FRAME_LENGTH || crc(&_buf) != extractCrc()) {
 					//Serial.println(extractCrc(), HEX);
 					Serial.println("Got error");
 					state = RS_ERROR;
@@ -262,14 +250,15 @@ protected:
 		}
 		return state;
 	}
-	status_t sending() {
-		//uint32_t start = millis();
-//digitalWrite(19, HIGH);
-//digitalWrite(17, HIGH);
-		enableSend();
-		_pos = 0;
+	status_t sending(status_t defaultState = RS_SEND) {
+		status_t state = defaultState;
+		//_serial->end();
+		//_serial->begin(38400);
+		//while (_serial->available()) _serial->read();
+		digitalWrite(_rxPin, HIGH);
+		delay(100);
 		while (_pos < sizeof(packetHeader) + _reply.header.dataSize) {
-			//if (start - millis() > MAX_SEND_TIME)
+			//if (millis() - _start > MAX_SEND_TIME)
 			//	return RS_SEND;
 			Serial.print("s");
 			Serial.print(_reply.raw[_pos], HEX);
@@ -277,8 +266,10 @@ protected:
 			//_serial->print(_reply.raw[_pos], HEX);
 			_pos++;
 		}
-		Serial.println();
+		delay(_pos);
+		digitalWrite(_rxPin, LOW);
+		_serial->flush();
 		_pos = 0;
-		return RS_WAIT;
+		return RS_DONE;
 	}
 };

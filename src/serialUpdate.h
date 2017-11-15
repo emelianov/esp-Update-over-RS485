@@ -26,7 +26,7 @@ public:
 		return version != "";
 	}
 	void sendData() {
-		this->fillFrame(IMAGE_DATA, "DATA ");
+		this->fillFrame(IMAGE_DATA, "DATA12345678901234567890");
 		this->send();
 	}
 	void end() {

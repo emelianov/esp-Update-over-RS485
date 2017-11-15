@@ -22,3 +22,6 @@ void setup() {
   sl.receive();
   Serial.println("Ready");
 }
+void loop() {
+    sl.taskSlave();
+}

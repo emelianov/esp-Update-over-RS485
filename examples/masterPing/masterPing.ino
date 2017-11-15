@@ -42,7 +42,7 @@ void setup() {
   Serial1.begin(38400);
   su.begin();
   taskAdd(dataExchange);
-  taskAddWithDelay(dataSend, 1000);
+  taskAddWithDelay(dataSend, 5000);
 }
 
 void loop() {
