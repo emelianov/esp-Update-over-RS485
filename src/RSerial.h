@@ -1,5 +1,5 @@
 #pragma once
-
+#include <rom/crc.h>
 #define MAGIC_SIG {0xFF, 0xEE, 0xDD, 0xCC}
 #define MAGIC_SIG_LENGTH 4
 #define FRAME_LENGTH 1024
@@ -18,6 +18,7 @@ struct packetHeader {
 	uint8_t command;
 	uint16_t dataSize;
 };
+
 #define C_OK 1
 #define C_ERROR 2
 #define C_PING 3
@@ -101,10 +102,11 @@ public:
 	}
 	uint32_t crc(packetFrame* data) {
 		uint32_t cr = 0;
-		for (uint16_t i = 0; i < data->header.dataSize - sizeof(uint32_t); i++) {
-			cr += data->raw[i];
-		}
-		return cr;
+		//for (uint16_t i = 0; i < data->header.dataSize - sizeof(uint32_t); i++) {
+		//	cr += data->raw[i];
+		//}
+		
+		return crc32_le(0, (uint8_t*)data, data->header.dataSize - sizeof(uint32_t));
 	}
 	status_t send() {
 		//_serial->flush();
@@ -182,9 +184,7 @@ protected:
 	uint16_t	_txPin = -1;
 	uint16_t	_rxPin = -1;
 	uint32_t	_start = 0;
-//	status_t prepareReply() {
-//		return RS_SEND;
-//	}
+
 	void enableSend() {
 		//digitalWrite(ERX, HIGH);//For SoftwareSerial debug
 		//digitalWrite(ETX, HIGH);//For SoftwareSerial debug
@@ -230,10 +230,10 @@ protected:
 					continue;
 				}
 			}
-			_pos++;
 			Serial.print("r");
 			Serial.print(_buf.raw[_pos], HEX);
-			if ((_pos > sizeof(packetHeader) && _pos >= _buf.header.dataSize + sizeof(packetHeader)) || _pos >= FRAME_LENGTH) {
+			_pos++;
+			if ((_pos >= sizeof(packetHeader) && _pos >= _buf.header.dataSize + sizeof(packetHeader)) || _pos >= FRAME_LENGTH) {
 				_serial->flush();
 				_pos = 0;
 				//Serial.println();
@@ -256,7 +256,6 @@ protected:
 		//_serial->begin(38400);
 		//while (_serial->available()) _serial->read();
 		digitalWrite(_rxPin, HIGH);
-		delay(100);
 		while (_pos < sizeof(packetHeader) + _reply.header.dataSize) {
 			//if (millis() - _start > MAX_SEND_TIME)
 			//	return RS_SEND;
@@ -266,7 +265,7 @@ protected:
 			//_serial->print(_reply.raw[_pos], HEX);
 			_pos++;
 		}
-		delay(_pos);
+		//delay(_pos);
 		digitalWrite(_rxPin, LOW);
 		_serial->flush();
 		_pos = 0;

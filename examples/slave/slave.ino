@@ -1,24 +1,23 @@
 #include <RSerial.h>
-#include <SoftwareSerial.h>
 
-#define RX D2
-#define TX D3
-#define ENA D4
+#define RX 16
+//#define RX D2
+#define TX 17
+//#define TX D3
 
-SoftwareSerial SSerial(RX,TX); 
-RSerial<SoftwareSerial> sl(&SSerial, D4, D4); 
+HardwareSerial Serial1(1);
+RSerial<HardwareSerial> sl(&Serial1, 5, 5);
 
 void setup() {
   pinMode(TX, OUTPUT);
   pinMode(RX, INPUT);
-  pinMode(ENA, OUTPUT);
-  pinMode(D1, OUTPUT);
-  digitalWrite(ENA, LOW);
-  digitalWrite(D1, LOW);
+  pinMode(5, OUTPUT);
+  //pinMode(D1, OUTPUT);
+  //digitalWrite(5, LOW);
+  //digitalWrite(D1, LOW);
   Serial.begin(74880);
   Serial.println("123");
-  SSerial.begin(38400);
-  //SSerial.setTransmitEnablePin(ENA);
+  Serial1.begin(38400,SERIAL_8N1, 26, 25);
   sl.receive();
   Serial.println("Ready");
 }
