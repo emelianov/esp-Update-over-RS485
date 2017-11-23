@@ -27,14 +27,15 @@ struct packetHeader {
 
 #define C_OK 1
 #define C_ERROR 2
-#define C_PING 3
+#define C_BADCRC 3
+#define C_PING 4
 
 union packetFrame {
 	packetHeader header;
 	uint8_t raw[FRAME_LENGTH];
 };
 
-enum status_t {RS_IDLE, RS_SEND, RS_WAIT, RS_OK, RS_RECEIVE, RS_READY, RS_ERROR, RS_TIMEOUT, RS_FAILED, RS_DONE};
+enum status_t {RS_IDLE, RS_SEND, RS_WAIT, RS_OK, RS_RECEIVE, RS_READY, RS_ERROR, RS_TIMEOUT, RS_FAILED, RS_DONE, RS_CRC_ERROR};
 
 #ifdef ESP8266
 // CRC32 calculation for ESP8266. Building function is used for ESP32
@@ -84,6 +85,10 @@ public:
 			fillFrame(C_OK,"OK");
 			send();
 			break;
+		case RS_CRC_ERROR:
+			fillFrame(C_BADCRC,"ERR");
+			send();
+			break;
 		case RS_ERROR:
 			fillFrame(C_ERROR,"ERR");
 			send();
@@ -119,11 +124,20 @@ public:
 			}
 			break;
 		case RS_READY:
-			//_state = processPacketMaster();
-			_state = RS_IDLE;
+			if (_buf.header.command == C_BADCRC) {
+				_state = RS_ERROR;
+			} else {
+				_state = processPacketMaster();
+				//_state = RS_IDLE;
+			}
 			break;
 		case RS_ERROR:
-			send();
+			_retryCount++;
+			if (_retryCount >  MAX_RETRY_COUNT) {
+				_state = RS_FAILED;
+			} else {
+				_state = send();
+			}
 			break;
 		case RS_TIMEOUT:
 		case RS_IDLE:
@@ -137,17 +151,18 @@ public:
 	uint32_t crc(packetFrame* data) {
 		return crc32_le(0, (uint8_t*)data, data->header.dataSize - sizeof(uint32_t));
 	}
+	void clean() {
+		_pos = 0;
+		_retryCount = 0;
+	}
 	// Initiate sending of frame buffer
 	status_t send() {
 		//_serial->flush();
 		//enableSend();
 		_pos = 0;
-		_retryCount = 0;
+		//_retryCount = 0;
 		_state = RS_SEND;
 		Serial.println("Send");
-		//for (uint8_t i = 0; i < 100; i++) {
-		//	_serial->write((char*)0);
-		//}
 		_start = millis();
 		return _state;
 	}
@@ -161,16 +176,16 @@ public:
 	}
 	status_t processPacketMaster() {
 		debugPrintPacket();
-		//digitalWrite(TX, HIGH);
-		//delay(1000);
+		if (_buf.header.command == C_BADCRC)
+			return send();
 		return RS_IDLE;
 	}
 	status_t processPacketSlave() {
 		debugPrintPacket();
-		//if (_buf.header.command == C_PING) {
-		//	memcpy(&_reply, &_buf, _buf.header.dataSize + sizeof(packetHeader));
-		//	return send();
-		//}
+		if (_buf.header.command == C_PING) {
+			memcpy(&_reply, &_buf, _buf.header.dataSize + sizeof(packetHeader));
+			return send();
+		}
 		return RS_OK;
 	}
 	bool isIdle() {
@@ -183,13 +198,14 @@ public:
 		}
 		Serial.println();
 	}
-	bool fillFrame(uint8_t com, const char* data) {
-		return fillFrame(com, (uint8_t*)data, strlen(data));
+	bool fillFrame(uint8_t com, const char* data, uint8_t slaveId = 0) {
+		return fillFrame(com, (uint8_t*)data, strlen(data), slaveId);
 	}
-	bool fillFrame(uint8_t com, const uint8_t* data, uint16_t len) {
-		//uint16_t len = strlen(data);
+	bool fillFrame(uint8_t com, const uint8_t* data, uint16_t len, uint8_t slaveId = 0) {
 		if (len > FRAME_LENGTH - sizeof(packetHeader)) return false;
 		memcpy(_reply.header.sig, _sig, MAGIC_SIG_LENGTH);
+		_reply.header.id = slaveId;
+		_reply.header.flags = 0;
 		_reply.header.command = com;
 		_reply.header.dataSize = len + sizeof(uint32_t);
 		memcpy(&_reply.raw[sizeof(packetHeader)], data, len);
@@ -198,10 +214,9 @@ public:
 		_pos = 0;
 		return true;
 	}
-	//template <typename R> bool fillFrame(uint8_t com, const R &data) {
+	//template <typename R> bool fillFrame(uint8_t com, const R &data, uint8_t slaveId = 0) {
 	//	return fillFrame(com, (uint8_t*)data, sizeof(data));
 	//}
-
 protected:
 	uint8_t		_id = 0;
 	uint16_t	_pos = 0;
