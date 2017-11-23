@@ -30,6 +30,7 @@
 
 #include <Run.h>
 #include "web.h"
+#include "update.h"
 
 uint32_t dataExchange() {
   su.taskMaster();
@@ -83,6 +84,7 @@ void setup() {
   taskAdd(wifiWait);
   SPIFFS.begin();
   taskAdd(webInit);
+  taksAdd(updateInit);
   su.begin();
   taskAdd(dataExchange);
   taskAddWithDelay(dataSend, 5000);

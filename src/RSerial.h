@@ -27,8 +27,8 @@ struct packetHeader {
 
 #define C_OK 1
 #define C_ERROR 2
-#define C_BADCRC 3
-#define C_PING 4
+#define C_PING 3
+#define C_BADCRC 4
 
 union packetFrame {
 	packetHeader header;
@@ -126,9 +126,11 @@ public:
 		case RS_READY:
 			if (_buf.header.command == C_BADCRC) {
 				_state = RS_ERROR;
+							Serial.println("Error");
 			} else {
-				_state = processPacketMaster();
+				_state = this->processPacketMaster();
 				//_state = RS_IDLE;
+							Serial.println("Ready");
 			}
 			break;
 		case RS_ERROR:
@@ -174,13 +176,15 @@ public:
 		_start = millis();
 		return _state;
 	}
-	status_t processPacketMaster() {
+	virtual status_t processPacketMaster() {
 		debugPrintPacket();
-		if (_buf.header.command == C_BADCRC)
+		if (_buf.header.command == C_BADCRC) {
+			Serial.println("CRC");
 			return send();
+		}
 		return RS_IDLE;
 	}
-	status_t processPacketSlave() {
+	virtual status_t processPacketSlave() {
 		debugPrintPacket();
 		if (_buf.header.command == C_PING) {
 			memcpy(&_reply, &_buf, _buf.header.dataSize + sizeof(packetHeader));
@@ -189,7 +193,7 @@ public:
 		return RS_OK;
 	}
 	bool isIdle() {
-		return _state == RS_IDLE || _state == RS_ERROR;
+		return _state == RS_IDLE || _state == RS_ERROR || _state == RS_FAILED;
 	}
 	void debugPrintPacket() {
 		for (uint8_t i = 0; i < _buf.header.dataSize; i++) {

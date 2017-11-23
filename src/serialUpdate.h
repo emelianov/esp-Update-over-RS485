@@ -102,17 +102,20 @@ public:
 		}
 	}
 	status_t processPacketMaster() {
+	Serial.println("PM");
 		switch (this->_buf.header.command) {
 		case GET_VERSION:
 			for (uint16_t i = 0; i < this->_buf.header.dataSize; i++) {
-				version += (char)this->_bur.raw[sizeof(packetHeader) + i];
+				version += (char)this->_buf.raw[sizeof(packetHeader) + i];
 			}
 			break;
 		case FILE_ERROR:
 			this->_action = FILE_ERROR;
 			break;
 		default:
-			return RSerial<T>::processPacketMaster();
+			this->_state = RSerial<T>::processPacketMaster();
+			Serial.println(this->_state);
+			return this->_state;
 		}
 		this->_state = RS_IDLE;
 		return this->_state;
