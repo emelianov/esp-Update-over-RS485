@@ -1,10 +1,16 @@
 #pragma once
-#include <rom/crc.h>
+#ifndef ESP8266
+ #include <rom/crc.h>
+#endif
+// Packet signature
 #define MAGIC_SIG {0xFF, 0xEE, 0xDD, 0xCC}
 #define MAGIC_SIG_LENGTH 4
+// Maximim packet length
 #define FRAME_LENGTH 1024
+// Packet resend count if CRC or timeout failure
 #define MAX_RETRY_COUNT	5
 #define RESPONSE_TIMEOUT 10000
+// Data transfer timeout
 #define MAX_SEND_TIME 2000
 
 //For SoftwareSerial debug
@@ -12,11 +18,11 @@
 #define ETX D4
 
 struct packetHeader {
-	uint8_t sig[MAGIC_SIG_LENGTH];
-	uint8_t id;
-	uint8_t flags;
+	uint8_t sig[MAGIC_SIG_LENGTH];	// Packet signature
+	uint8_t id;						// From/To slave ID
+	uint8_t flags;					// Packet flags (reserved for future use)
 	uint8_t command;
-	uint16_t dataSize;
+	uint16_t dataSize;				// Packet data size (Full packet size is sizeof(header) + data size + sizeof(crc32)
 };
 
 #define C_OK 1
@@ -30,6 +36,31 @@ union packetFrame {
 
 enum status_t {RS_IDLE, RS_SEND, RS_WAIT, RS_OK, RS_RECEIVE, RS_READY, RS_ERROR, RS_TIMEOUT, RS_FAILED, RS_DONE};
 
+#ifdef ESP8266
+// CRC32 calculation for ESP8266. Building function is used for ESP32
+uint32_t crc32_le(uint32_t crc, const uint8_t *data, size_t length)
+{
+    uint32_t i;
+    bool bit;
+    uint8_t c;
+    
+    while (length--) {
+        c = *data++;
+        for (i = 0x80; i > 0; i >>= 1) {
+            bit = crc & 0x80000000;
+            if (c & i) {
+                bit = !bit;
+            }
+            crc <<= 1;
+            if (bit) {
+                crc ^= 0x04c11db7;
+            }
+        }
+    }
+    return crc;
+}
+#endif
+
 template <typename T> class RSerial {
 public:
 	RSerial(T* serial) {
@@ -41,6 +72,7 @@ public:
 		_txPin = max485_tx;
 		digitalWrite(_rxPin, LOW);
 	}
+	// Slave loop function
 	void taskSlave() {
 		switch (_state) {
 		case RS_IDLE:
@@ -68,6 +100,7 @@ public:
 			//Serial.println(_state);
 		}
 	}
+	// Master loop function
 	status_t taskMaster() {
 		switch (_state) {
 		case RS_SEND:
@@ -100,14 +133,11 @@ public:
 			//Serial.println("Unknown state");
 		}
 	}
+	// Returns packet data CRC32
 	uint32_t crc(packetFrame* data) {
-		uint32_t cr = 0;
-		//for (uint16_t i = 0; i < data->header.dataSize - sizeof(uint32_t); i++) {
-		//	cr += data->raw[i];
-		//}
-		
 		return crc32_le(0, (uint8_t*)data, data->header.dataSize - sizeof(uint32_t));
 	}
+	// Initiate sending of frame buffer
 	status_t send() {
 		//_serial->flush();
 		//enableSend();
