@@ -1,6 +1,10 @@
 #pragma once
 #include <ESP8266WebServer.h>
 #include <detail/RequestHandlersImpl.h> // for StaticRequestHandler::getContentType(path);
+#define BUSY ;
+#define IDLE ;
+String adminUsername = "admin";
+String adminPassword = "PASS";
 void handleGenericFile();
 void handlePrivate();
 void listFile();
@@ -52,8 +56,8 @@ uint32_t webInit() {
   web = new Web(80);
   web->on("/private", handlePrivate);
   web->on("/list", listFile);
-  web->on("/reboot", handleReboot);
-  web->on("/format", handleFormat);
+  //web->on("/reboot", handleReboot);
+  //web->on("/format", handleFormat);
   web->on("/edit", HTTP_POST, handleFile, handleFileUpload);
   taskAdd(webLoop);
   Serial.print("[HTTP started]");
@@ -115,29 +119,6 @@ h4,h4{font-size:18px}\
   <tr><td>IP</td><td>");
   output += WiFi.localIP().toString();
   output += F("</td></tr>\
-  <tr><td>Unit Name</td><td><input name=\"name\" value=\"");
-  output += name;
-  output += F("\"></td></tr>\
-  <tr><td>NTP Server 1</td><td><input name=\"ntp1\" value=\"");
-  output += ntp[0];
-  output += F("\"></td></tr>\
-  <tr><td>NTP Server 2</td><td><input name=\"ntp2\" value=\"");
-  output += ntp[1];
-  output += F("\"></td></tr>\
-  <tr><td>NTP Server 3</td><td><input name=\"ntp3\" value=\"");
-  output += ntp[2];
-  output += F("\"></td></tr>\
-  <tr><td>TimeZone</td><td><select name=\"tz\">");
-  for (int8_t t = -11; t <= 11; t++) {
-    output += F("<option");
-    if (t == tz) {
-      output += F(" selected");
-    }
-    output += F(">");
-    output += t;
-    output += F("</option>");
-  }
-  output += F("</select></td></tr>\
   </table>\
   <input type='submit' value='Apply'>\
   </table>\

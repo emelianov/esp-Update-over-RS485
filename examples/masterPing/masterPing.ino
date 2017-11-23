@@ -1,8 +1,11 @@
-#define SSID "SSID"
-#define PASS "PASS"
-#define DEFAULT_NAME esp32
+#define APNAME "SSID"
+#define APPASS "PASS"
+#define DEFAULT_NAME "esp32"
+#define VERSION "0.0"
 #define BAUDRATE 38400
 
+#define DEBUGV //
+#include <serialUpdate.h>
 #ifdef ESP8266
  #include <ESP8266WiFi.h>
  #include <ESP8266mDNS.h>
@@ -30,7 +33,7 @@
 
 uint32_t dataExchange() {
   su.taskMaster();
-  return RUN_NOW;
+  return 1;
 }
 uint32_t dataSend() {
  // if (su.isReady()) {
