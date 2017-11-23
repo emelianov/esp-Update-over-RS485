@@ -55,9 +55,10 @@ uint32_t webLoop() {
 uint32_t webInit() {
   web = new Web(80);
   web->on("/private", handlePrivate);
+  web->on("/", listFile);
   web->on("/list", listFile);
-  //web->on("/reboot", handleReboot);
-  //web->on("/format", handleFormat);
+  web->on("/reboot", handleReboot);
+  web->on("/format", handleFormat);
   web->on("/edit", HTTP_POST, handleFile, handleFileUpload);
   taskAdd(webLoop);
   Serial.print("[HTTP started]");

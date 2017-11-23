@@ -50,6 +50,7 @@ public:
 		this->_stream = dataSource;
 	}
 	status_t processPacketSlave() {
+		String newFileName = "";
 		switch (this->_buf.header.command) {
 		case GET_VERSION:
 			this->fillFrame(GET_VERSION, version.c_str());
@@ -62,9 +63,8 @@ public:
 		case END_UPDATE:
 			break;
 		case FILE_CREATE:
-			String newFileName = "";
 			for (uint16_t i = 0; i < this->_buf.header.dataSize; i++) {
-				newFileName += (char)this->_bur.raw[sizeof(packetHeader) + i];
+				newFileName += (char)this->_buf.raw[sizeof(packetHeader) + i];
 			}
 			if(!newFileName.startsWith("/")) newFileName = "/" + newFileName;
 			this->_file = SPIFFS.open(newFileName, "w");
@@ -123,5 +123,5 @@ public:
 private:
 	uint8_t _slaveId;
 	uint8_t _action = ACT_IDLE;
-	File _stream;
+	File _file;
 };

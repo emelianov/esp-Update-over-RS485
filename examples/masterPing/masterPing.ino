@@ -1,10 +1,9 @@
-#define APNAME "SSID"
-#define APPASS "PASS"
+#define APNAME "EW"
+#define APPASS "iMpress6264"
 #define DEFAULT_NAME "esp32"
 #define VERSION "0.0"
 #define BAUDRATE 38400
 
-#define DEBUGV //
 #include <serialUpdate.h>
 #ifdef ESP8266
  #include <ESP8266WiFi.h>
@@ -34,15 +33,17 @@
 
 uint32_t dataExchange() {
   su.taskMaster();
-  return 1;
+  return RUN_NOW;
 }
 uint32_t dataSend() {
- // if (su.isReady()) {
+  //if (su.isReady()) {
     if (su.isIdle()) {
       Serial.println("Sending...");
       su.sendData();
+      return 5000;
     }
   //}
+  Serial.println("Busy");
   return 5000;
 }
 
@@ -69,6 +70,18 @@ uint32_t wifiWait() {
   return 500;
 }
 
+uint32_t restartESP() {
+  ESP.restart();
+  return RUN_DELETE;
+}
+
+uint32_t formatSPIFFS() {
+  SPIFFS.end();
+  SPIFFS.format();
+  SPIFFS.begin();
+  return RUN_DELETE;
+}
+
 void setup() {
   pinMode(TX, OUTPUT);
   pinMode(RX, INPUT);
@@ -80,11 +93,12 @@ void setup() {
   Serial.begin(115200);
   Serial1.begin(BAUDRATE, SERIAL_8N1, RX, TX);
 #endif
-  WiFi.begin();
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(APNAME, APPASS);
   taskAdd(wifiWait);
-  SPIFFS.begin();
+  SPIFFS.begin(true);
   taskAdd(webInit);
-  taksAdd(updateInit);
+  taskAdd(updateInit);
   su.begin();
   taskAdd(dataExchange);
   taskAddWithDelay(dataSend, 5000);
