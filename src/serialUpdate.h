@@ -43,7 +43,7 @@ public:
 		this->fillFrame(END_UPDATE, lcrc, this->_slaveId);
 		this->send();
 	}
-	void sendFile(char* name, File dataSource) {
+	bool sendFile(char* name, File dataSource) {
 		this->fillFrame(FILE_CREATE, name, this->_slaveId);
 		this->send();
 		this->_action = FILE_CREATE;
@@ -102,7 +102,6 @@ public:
 		}
 	}
 	status_t processPacketMaster() {
-	Serial.println("PM");
 		switch (this->_buf.header.command) {
 		case GET_VERSION:
 			for (uint16_t i = 0; i < this->_buf.header.dataSize; i++) {
@@ -115,6 +114,21 @@ public:
 		default:
 			this->_state = RSerial<T>::processPacketMaster();
 			Serial.println(this->_state);
+			if (this->_action == FILE_CREATE || this->_action == FILE_DATA) {
+				if (this->_stream.available()) {
+					if (fillFrame(FILE_DATA, this->_stream)) {
+						this->_action = FILE_DATA;
+					}
+				} else {
+					if (fillFrame(FILE_CLOSE, this->_stream)) {
+						this->_stream.close();
+						this->_action = FILE_CLOSE;
+					}
+				}
+			} else {
+				this->_stream.close();
+				this->_action = ACT_IDLE;
+			}
 			return this->_state;
 		}
 		this->_state = RS_IDLE;

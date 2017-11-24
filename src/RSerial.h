@@ -206,7 +206,7 @@ public:
 		return fillFrame(com, (uint8_t*)data, strlen(data), slaveId);
 	}
 	bool fillFrame(uint8_t com, const uint8_t* data, uint16_t len, uint8_t slaveId = 0) {
-		if (len > FRAME_LENGTH - sizeof(packetHeader)) return false;
+		if (len > FRAME_LENGTH - sizeof(packetHeader) - sizeof(uint32_t)) return false;
 		memcpy(_reply.header.sig, _sig, MAGIC_SIG_LENGTH);
 		_reply.header.id = slaveId;
 		_reply.header.flags = 0;
@@ -218,9 +218,25 @@ public:
 		_pos = 0;
 		return true;
 	}
-	//template <typename R> bool fillFrame(uint8_t com, const R &data, uint8_t slaveId = 0) {
-	//	return fillFrame(com, (uint8_t*)data, sizeof(data));
-	//}
+	bool fillFrame(uint8_t com, File data, uint8_t slaveId = 0) {
+		memcpy(_reply.header.sig, _sig, MAGIC_SIG_LENGTH);
+		_reply.header.id = slaveId;
+		_reply.header.flags = 0;
+		_reply.header.command = com;
+		uint16_t len = sizeof(packetHeader);
+		while (data.available() && len < FRAME_LENGTH - sizeof(packetHeader) - sizeof(uint32_t)) {
+			_reply.raw[len] = data.read();
+			len++;
+		}
+		_reply.header.dataSize = len + sizeof(uint32_t);
+		uint32_t curCrc = crc(&_reply);
+		memcpy(&_reply.raw[len + sizeof(packetHeader)], &curCrc, sizeof(uint32_t));
+		_pos = 0;
+		return true;
+	}
+	template <typename R> bool fillFrame(uint8_t com, const R &data, uint8_t slaveId = 0) {
+		return fillFrame(com, (uint8_t*)data, sizeof(data));
+	}
 protected:
 	uint8_t		_id = 0;
 	uint16_t	_pos = 0;
