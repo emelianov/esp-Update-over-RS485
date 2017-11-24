@@ -5,9 +5,9 @@
 
 ```
 
-##2. Resources used
+## 2. Resources used
 * Arduino (https://github.com/arduino/Arduino)
 * Arduino core for the ESP32 (https://github.com/espressif/arduino-esp32)
 * ESP8266 core for Arduino (https://github.com/esp8266/Arduino)
-* HTTP server library for ESP8266/ESP32 Arduino cores (https://github.com/esp8266/ESPWebServer)
+* HTTP server library for ESP8266/ESP32 Arduino cores (https://github.com/emelianov/ESPWebServer)
 * Run 2017 (https://github.com/emelianov/Run)

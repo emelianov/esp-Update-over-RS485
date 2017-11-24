@@ -1,51 +1,26 @@
 #define APNAME "EW"
 #define APPASS "iMpress6264"
-#define DEFAULT_NAME "esp32"
+#define DEFAULT_NAME "esp"
+#define ADMINNAME "admin"
+#define ADMINPASS "password"
 #define VERSION "0.0"
 #define BAUDRATE 38400
 
-#include <serialUpdate.h>
 #ifdef ESP8266
  #include <ESP8266WiFi.h>
  #include <ESP8266mDNS.h>
  #include <ESP8266LLMNR.h>
  #include <FS.h>
- #include <SoftwareSerial.h>
- #define RX D2
- #define TX D3
- #define ENA D4
- SoftwareSerial Serial1(RX,TX); 
- SerialUpdate<SoftwareSerial> su(&Serial1, ENA, ENA);
 #else
  #include <WiFi.h>
  #include <ESPmDNS.h>
  #include <SPIFFS.h>
- #define RX 26
- #define TX 25
- #define ENA 5
- HardwareSerial Serial1(1);
- SerialUpdate<HardwareSerial> su(&Serial1, ENA, ENA);
 #endif
 
 #include <Run.h>
 #include "web.h"
 #include "update.h"
-
-uint32_t dataExchange() {
-  su.taskMaster();
-  return RUN_NOW;
-}
-uint32_t dataSend() {
-  //if (su.isReady()) {
-    if (su.isIdle()) {
-      Serial.println("Sending...");
-      su.sendData();
-      return 5000;
-    }
-  //}
-  Serial.println("Busy");
-  return 5000;
-}
+#include "push.h"
 
 uint32_t wifiWait() {
   if (WiFi.status() == WL_CONNECTED) {
@@ -83,15 +58,10 @@ uint32_t formatSPIFFS() {
 }
 
 void setup() {
-  pinMode(TX, OUTPUT);
-  pinMode(RX, INPUT);
-  pinMode(ENA, OUTPUT);
 #ifdef ESP8266
   Serial.begin(74880);
-  Serial1.begin(BAUDRATE, RX, TX);
 #else
   Serial.begin(115200);
-  Serial1.begin(BAUDRATE, SERIAL_8N1, RX, TX);
 #endif
   WiFi.mode(WIFI_STA);
   WiFi.begin(APNAME, APPASS);
@@ -99,9 +69,7 @@ void setup() {
   SPIFFS.begin(true);
   taskAdd(webInit);
   taskAdd(updateInit);
-  su.begin();
-  taskAdd(dataExchange);
-  taskAddWithDelay(dataSend, 5000);
+  taskAdd(pushInit);
 }
 
 void loop() {

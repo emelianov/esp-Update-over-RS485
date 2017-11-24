@@ -3,8 +3,8 @@
 #include <detail/RequestHandlersImpl.h> // for StaticRequestHandler::getContentType(path);
 #define BUSY ;
 #define IDLE ;
-String adminUsername = "admin";
-String adminPassword = "PASS";
+String adminUsername = ADMINNAME;
+String adminPassword = ADMINPASS;
 void handleGenericFile();
 void handlePrivate();
 void listFile();
@@ -14,10 +14,6 @@ void handleReboot();
 void handleFormat();
 void handleFile();
 void handleFileUpload();
-//#ifdef ESP8266
-//#undef F
-//#define F String
-//#endif
 
 class Web : public ESP8266WebServer {
 public:
@@ -120,8 +116,6 @@ h4,h4{font-size:18px}\
   <tr><td>IP</td><td>");
   output += WiFi.localIP().toString();
   output += F("</td></tr>\
-  </table>\
-  <input type='submit' value='Apply'>\
   </table>\
  </form>\
  </div></div>\
