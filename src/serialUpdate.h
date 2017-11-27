@@ -48,6 +48,8 @@ public:
 		this->send();
 		this->_action = FILE_CREATE;
 		this->_stream = dataSource;
+		Serial.println("Send: initiated");
+		return true;
 	}
 	status_t processPacketSlave() {
 		String newFileName = "";
@@ -116,13 +118,15 @@ public:
 			Serial.println(this->_state);
 			if (this->_action == FILE_CREATE || this->_action == FILE_DATA) {
 				if (this->_stream.available()) {
-					if (fillFrame(FILE_DATA, this->_stream)) {
+					if (this->fillFrame(FILE_DATA, this->_stream)) {
 						this->_action = FILE_DATA;
+						this->send();
 					}
 				} else {
-					if (fillFrame(FILE_CLOSE, this->_stream)) {
+					if (this->fillFrame(FILE_CLOSE, this->_stream)) {
 						this->_stream.close();
 						this->_action = FILE_CLOSE;
+						this->send();
 					}
 				}
 			} else {
@@ -138,4 +142,5 @@ private:
 	uint8_t _slaveId;
 	uint8_t _action = ACT_IDLE;
 	File _file;
+	File _stream;
 };

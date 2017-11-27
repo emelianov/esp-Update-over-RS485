@@ -1,6 +1,9 @@
 #pragma once
 #ifndef ESP8266
  #include <rom/crc.h>
+ #include <SPIFFS.h>
+#else
+ #include <FS.h>
 #endif
 // Packet signature
 #define MAGIC_SIG {0xFF, 0xEE, 0xDD, 0xCC}
@@ -11,7 +14,7 @@
 #define MAX_RETRY_COUNT	5
 #define RESPONSE_TIMEOUT 10000
 // Data transfer timeout
-#define MAX_SEND_TIME 2000
+#define MAX_SEND_TIME 3000
 
 //For SoftwareSerial debug
 #define ERX D1
@@ -86,7 +89,7 @@ public:
 			send();
 			break;
 		case RS_CRC_ERROR:
-			fillFrame(C_BADCRC,"ERR");
+			fillFrame(C_BADCRC,"CRC");
 			send();
 			break;
 		case RS_ERROR:
@@ -228,15 +231,18 @@ public:
 			_reply.raw[len] = data.read();
 			len++;
 		}
+		len -= sizeof(packetHeader);
 		_reply.header.dataSize = len + sizeof(uint32_t);
 		uint32_t curCrc = crc(&_reply);
 		memcpy(&_reply.raw[len + sizeof(packetHeader)], &curCrc, sizeof(uint32_t));
 		_pos = 0;
 		return true;
 	}
+/*
 	template <typename R> bool fillFrame(uint8_t com, const R &data, uint8_t slaveId = 0) {
 		return fillFrame(com, (uint8_t*)data, sizeof(data));
 	}
+*/
 protected:
 	uint8_t		_id = 0;
 	uint16_t	_pos = 0;
@@ -302,10 +308,17 @@ protected:
 				_serial->flush();
 				_pos = 0;
 				//Serial.println();
-				if (_buf.header.dataSize >= FRAME_LENGTH || crc(&_buf) != extractCrc()) {
-					//Serial.println(extractCrc(), HEX);
-					Serial.println("Got error");
+				if (_buf.header.dataSize >= FRAME_LENGTH) {
+					Serial.println("Too long");
 					state = RS_ERROR;
+					break;
+				}
+				if (crc(&_buf) != extractCrc()) {
+					Serial.println();
+					Serial.println(extractCrc(), HEX);
+					Serial.println(crc(&_buf), HEX);
+					Serial.println("CRC error");
+					state = RS_CRC_ERROR;
 					break;
 				}
 				Serial.println("Got packet");

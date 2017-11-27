@@ -15,7 +15,7 @@ void setup() {
   //pinMode(D1, OUTPUT);
   //digitalWrite(5, LOW);
   //digitalWrite(D1, LOW);
-  Serial.begin(74880);
+  Serial.begin(115200);
   Serial.println("123");
   Serial1.begin(38400,SERIAL_8N1, 26, 25);
   sl.receive();

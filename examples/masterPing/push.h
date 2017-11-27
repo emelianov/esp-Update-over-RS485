@@ -28,8 +28,10 @@ uint32_t dataSend() {
   //if (su.isReady()) {
     if (su.isIdle()) {
       Serial.println("Sending...");
-      su.sendData();
-      return 5000;
+      //su.sendData();
+      File one = SPIFFS.open("/push.h");
+      su.sendFile("/push.h", one);
+      return 15000;
     }
   //}
   Serial.println("Busy");
