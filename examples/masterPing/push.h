@@ -30,7 +30,8 @@ uint32_t dataSend() {
       Serial.println("Sending...");
       //su.sendData();
       File one = SPIFFS.open("/push.h");
-      su.sendFile("/push.h", one);
+      //su.sendFile("/push.h", one);
+      su.sendUpdate(one);
       return 15000;
     }
   //}
@@ -46,7 +47,7 @@ void pushHandle() {
       web->sendHeader("Connection", "close");
       web->sendHeader("Refresh", "10; url=/");
       web->send(200, "text/plain", "OK");
-      taskAddWithDelay(restartESP, 500);
+      taskAddWithDelay(dataSend, 500);
 }
 /*
 void updateUploadHandle() {

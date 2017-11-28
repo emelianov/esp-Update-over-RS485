@@ -1,26 +1,39 @@
-#include <RSerial.h>
+#define BAUDRATE 38400
 
-#define RX 16
-//#define RX D2
-#define TX 17
-//#define TX D3
-
-HardwareSerial Serial1(1);
-RSerial<HardwareSerial> sl(&Serial1, 5, 5);
+#include <serialUpdate.h>
+#ifdef ESP8266
+ #define SRX D2
+ #define STX D3
+ #define SENA D4
+ SoftwareSerial Serial1(SRX,STX); 
+ SerialUpdate<SoftwareSerial> su(&Serial1, SENA, SENA);
+#else
+ #define SRX 26
+ #define STX 25
+ #define SENA 5
+ HardwareSerial Serial1(1);
+ SerialUpdate<HardwareSerial> su(&Serial1, SENA, SENA);
+ #include <Update.h>
+#endif
 
 void setup() {
-  pinMode(TX, OUTPUT);
-  pinMode(RX, INPUT);
-  pinMode(5, OUTPUT);
-  //pinMode(D1, OUTPUT);
-  //digitalWrite(5, LOW);
-  //digitalWrite(D1, LOW);
+#ifdef ESP8266
+  Serial.begin(74880);
+#else
   Serial.begin(115200);
-  Serial.println("123");
-  Serial1.begin(38400,SERIAL_8N1, 26, 25);
-  sl.receive();
+#endif
+    pinMode(STX, OUTPUT);
+    pinMode(SRX, INPUT);
+    pinMode(SENA, OUTPUT);
+#ifdef ESP8266
+    Serial1.begin(BAUDRATE, SRX, STX);
+#else
+    Serial1.begin(BAUDRATE, SERIAL_8N1, SRX, STX);
+#endif
+  SPIFFS.begin(true);
+  //sl.receive();
   Serial.println("Ready");
 }
 void loop() {
-    sl.taskSlave();
+    su.taskSlave();
 }

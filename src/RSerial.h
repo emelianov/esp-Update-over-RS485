@@ -84,7 +84,10 @@ public:
 			_state = receiving(RS_RECEIVE);
 			break;
 		case RS_READY:
-		Serial.println("READY");
+			Serial.println("READY");
+			processPacketSlave();
+			break;
+		case RS_OK:
 			fillFrame(C_OK,"OK");
 			send();
 			break;
@@ -296,13 +299,13 @@ protected:
 			if (_pos < MAGIC_SIG_LENGTH && _buf.raw[_pos] != _sig[_pos]) {
 				_pos = 0;
 				if (_buf.raw[_pos] != _sig[_pos]) {
-					Serial.print("d");
-					Serial.print(_buf.raw[_pos], HEX);
+					//Serial.print("d");
+					//Serial.print(_buf.raw[_pos], HEX);
 					continue;
 				}
 			}
-			Serial.print("r");
-			Serial.print(_buf.raw[_pos], HEX);
+			//Serial.print("r");
+			//Serial.print(_buf.raw[_pos], HEX);
 			_pos++;
 			if ((_pos >= sizeof(packetHeader) && _pos >= _buf.header.dataSize + sizeof(packetHeader)) || _pos >= FRAME_LENGTH) {
 				_serial->flush();

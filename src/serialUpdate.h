@@ -51,7 +51,19 @@ public:
 		Serial.println("Send: initiated");
 		return true;
 	}
+	bool sendUpdate(File dataSource) {
+		this->fillFrame(BEGIN_UPDATE, "DUMMY", this->_slaveId);
+		this->send();
+		this->_action = BEGIN_UPDATE;
+		this->_stream = dataSource;
+		Serial.println("Update: initiated");
+		return true;
+	}
 	status_t processPacketSlave() {
+		uint32_t blockSize;
+		#define ESP32_SKETCH_SIZE 1310720
+		uint32_t sketchSpace;
+	Serial.println(this->_buf.header.command, HEX);
 		String newFileName = "";
 		switch (this->_buf.header.command) {
 		case GET_VERSION:
@@ -59,10 +71,40 @@ public:
 			this->send();
 			break;
 		case BEGIN_UPDATE:
+    		//WiFiUDP::stopAll();
+     		#ifdef ESP8266
+      			sketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
+     		#else
+      			sketchSpace = ESP32_SKETCH_SIZE;
+     		#endif
+      		if(!Update.begin(sketchSpace)){//start with max available size
+        		Update.printError(Serial);
+        		this->fillFrame(C_OK, "Update start");
+      		} else {
+      			this->fillFrame(FILE_ERROR, "Update start failed");
+      		}
+      		this->_state = this->send();
 			break;
 		case IMAGE_DATA:
+    		Serial.print(".");
+    		blockSize = this->_buf.header.dataSize - sizeof(uint32_t);
+        	if(Update.write(&this->_buf.raw[sizeof(packetHeader)], blockSize) != blockSize){
+          		Update.printError(Serial);
+        		this->fillFrame(C_OK, "Update upload");
+        	} else {
+        		this->fillFrame(FILE_ERROR, "Update upload failed");
+        	}
+        	this->_state = this->send();
 			break;
 		case END_UPDATE:
+    		Serial.println("Write");
+        	if(Update.end(true)){ //true to set the size to the current progress
+          		Serial.printf("Update Success. \nRebooting...\n");
+          		this->fillFrame(C_OK, "Update success");
+        	} else {
+        		this->fillFrame(C_OK, "Update failed");
+        	}
+        	this->_state = this->send();
 			break;
 		case FILE_CREATE:
 			for (uint16_t i = 0; i < this->_buf.header.dataSize; i++) {
@@ -71,8 +113,10 @@ public:
 			if(!newFileName.startsWith("/")) newFileName = "/" + newFileName;
 			this->_file = SPIFFS.open(newFileName, "w");
 			if (this->_file) {
+				Serial.println("File created");
 				this->fillFrame(C_OK, "File created");
 			} else {
+				Serial.println("Create failed");
 				this->fillFrame(FILE_ERROR, "Create failed");
 			}
 			this->_state = this->send();
@@ -129,6 +173,19 @@ public:
 						this->send();
 					}
 				}
+			} else if (this->_action == BEGIN_UPDATE || this->_action == IMAGE_DATA) {
+				if (this->_stream.available()) {
+					if (this->fillFrame(IMAGE_DATA, this->_stream)) {
+						this->_action = IMAGE_DATA;
+						this->send();
+					}
+				} else {
+					if (this->fillFrame(END_UPDATE, this->_stream)) {
+						this->_stream.close();
+						this->_action = END_UPDATE;
+						this->send();
+					}
+				}			
 			} else {
 				this->_stream.close();
 				this->_action = ACT_IDLE;
