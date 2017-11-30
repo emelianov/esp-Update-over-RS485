@@ -29,7 +29,7 @@ uint32_t dataSend() {
     if (su.isIdle()) {
       Serial.println("Sending...");
       //su.sendData();
-      File one = SPIFFS.open("/push.h");
+      File one = SPIFFS.open("/slave.ino.node32s.bin");
       //su.sendFile("/push.h", one);
       su.sendUpdate(one);
       return 15000;

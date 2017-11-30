@@ -32,7 +32,7 @@ void setup() {
 #endif
   SPIFFS.begin(true);
   //sl.receive();
-  Serial.println("Ready");
+  Serial.println("Ready!");
 }
 void loop() {
     su.taskSlave();

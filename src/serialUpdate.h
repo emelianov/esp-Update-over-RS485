@@ -77,10 +77,10 @@ public:
      		#else
       			sketchSpace = ESP32_SKETCH_SIZE;
      		#endif
-      		if(!Update.begin(sketchSpace)){//start with max available size
-        		Update.printError(Serial);
+      		if(Update.begin(sketchSpace)){//start with max available size
         		this->fillFrame(C_OK, "Update start");
       		} else {
+      			Update.printError(Serial);
       			this->fillFrame(FILE_ERROR, "Update start failed");
       		}
       		this->_state = this->send();
@@ -88,10 +88,10 @@ public:
 		case IMAGE_DATA:
     		Serial.print(".");
     		blockSize = this->_buf.header.dataSize - sizeof(uint32_t);
-        	if(Update.write(&this->_buf.raw[sizeof(packetHeader)], blockSize) != blockSize){
-          		Update.printError(Serial);
+        	if(Update.write(&this->_buf.raw[sizeof(packetHeader)], blockSize) == blockSize){
         		this->fillFrame(C_OK, "Update upload");
         	} else {
+        		Update.printError(Serial);
         		this->fillFrame(FILE_ERROR, "Update upload failed");
         	}
         	this->_state = this->send();
@@ -164,23 +164,25 @@ public:
 				if (this->_stream.available()) {
 					if (this->fillFrame(FILE_DATA, this->_stream)) {
 						this->_action = FILE_DATA;
-						this->send();
+						this->_state = this->send();
 					}
 				} else {
-					if (this->fillFrame(FILE_CLOSE, this->_stream)) {
+					if (this->fillFrame(FILE_CLOSE, "EOF")) {
 						this->_stream.close();
 						this->_action = FILE_CLOSE;
-						this->send();
+						this->_state = this->send();
 					}
 				}
 			} else if (this->_action == BEGIN_UPDATE || this->_action == IMAGE_DATA) {
 				if (this->_stream.available()) {
+					Serial.println(".");
 					if (this->fillFrame(IMAGE_DATA, this->_stream)) {
 						this->_action = IMAGE_DATA;
-						this->send();
+						this->_state = this->send();
 					}
 				} else {
-					if (this->fillFrame(END_UPDATE, this->_stream)) {
+					if (this->fillFrame(END_UPDATE, "EOF")) {
+						Serial.println("End update");
 						this->_stream.close();
 						this->_action = END_UPDATE;
 						this->send();

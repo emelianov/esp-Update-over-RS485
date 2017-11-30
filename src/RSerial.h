@@ -340,8 +340,8 @@ protected:
 		while (_pos < sizeof(packetHeader) + _reply.header.dataSize) {
 			//if (millis() - _start > MAX_SEND_TIME)
 			//	return RS_SEND;
-			Serial.print("s");
-			Serial.print(_reply.raw[_pos], HEX);
+			//Serial.print("s");
+			//Serial.print(_reply.raw[_pos], HEX);
 			_serial->write(_reply.raw[_pos]);
 			//_serial->print(_reply.raw[_pos], HEX);
 			_pos++;
