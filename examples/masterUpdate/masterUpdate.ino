@@ -1,3 +1,10 @@
+//
+// Serial/RS-485 File transfer and update implementation
+// (c)2017 Alexander Emelianov a.m.emelianov@gmail.com
+// https://github.com/emelianov/esp-Update-over-RS485
+//
+// Master node complex example
+
 #define APNAME "EW"
 #define APPASS "iMpress6264"
 #define DEFAULT_NAME "esp"
@@ -29,10 +36,10 @@ uint32_t wifiWait() {
     Serial.println(WiFi.localIP());
     
     if (!MDNS.begin(DEFAULT_NAME)) {
-      Serial.print("[mDNS: failed]");
+      Serial.println("[mDNS: failed]");
     } else {
       MDNS.addService("http", "tcp", 80);  // Add service to MDNS-SD
-      Serial.print("[mDNS: started]");
+      Serial.println("[mDNS: started]");
     }
     // LLMNR
    #ifdef ESP8266

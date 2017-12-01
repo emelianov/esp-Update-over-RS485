@@ -32,7 +32,7 @@ uint32_t dataSend() {
       File one = SPIFFS.open("/slave.ino.node32s.bin");
       //su.sendFile("/push.h", one);
       su.sendUpdate(one);
-      return 15000;
+      return RUN_DELETE;
     }
   //}
   Serial.println("Busy");
@@ -49,42 +49,7 @@ void pushHandle() {
       web->send(200, "text/plain", "OK");
       taskAddWithDelay(dataSend, 500);
 }
-/*
-void updateUploadHandle() {
-  size_t sketchSpace;
-  BUSY
-    HTTPUpload& upload = web->upload();
-    switch (upload.status) {
-    case UPLOAD_FILE_START:
-    //WiFiUDP::stopAll();
-     #ifdef ESP8266
-      sketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
-     #else
-      sketchSpace = ESP32_SKETCH_SIZE;
-     #endif
-     Serial.println(sketchSpace);
-      if(!Update.begin(sketchSpace)){//start with max available size
-        Update.printError(Serial);
-      }
-      break;
-    case UPLOAD_FILE_WRITE:
-    Serial.print(".");
-        if(Update.write(upload.buf, upload.currentSize) != upload.currentSize){
-          Update.printError(Serial);
-        }
-        break;
-    case UPLOAD_FILE_END:
-    Serial.println("Write");
-        if(Update.end(true)){ //true to set the size to the current progress
-          Serial.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
-        }
-        break;
-    default:
-        Update.printError(Serial);
-      }
-  IDLE
-}
-*/
+
 uint32_t pushInit() {
     pinMode(STX, OUTPUT);
     pinMode(SRX, INPUT);
@@ -97,6 +62,6 @@ uint32_t pushInit() {
     web->on("/push", HTTP_GET, pushHandle);//Update remote firmware
     su.begin();
     taskAdd(dataExchange);
-    taskAddWithDelay(dataSend, 5000);
+    //taskAddWithDelay(dataSend, 5000);
     return RUN_DELETE;
 };

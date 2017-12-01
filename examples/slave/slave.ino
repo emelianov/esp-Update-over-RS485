@@ -1,4 +1,12 @@
+//
+// Serial/RS-485 File transfer and update implementation
+// (c)2017 Alexander Emelianov a.m.emelianov@gmail.com
+// https://github.com/emelianov/esp-Update-over-RS485
+//
+// Slave node example
+
 #define BAUDRATE 38400
+#define SLAVE_ID 1
 
 #include <serialUpdate.h>
 #ifdef ESP8266
@@ -6,13 +14,13 @@
  #define STX D3
  #define SENA D4
  SoftwareSerial Serial1(SRX,STX); 
- SerialUpdate<SoftwareSerial> su(&Serial1, SENA, SENA);
+ SerialUpdate<SoftwareSerial> su(&Serial1, SENA);
 #else
  #define SRX 26
  #define STX 25
  #define SENA 5
  HardwareSerial Serial1(1);
- SerialUpdate<HardwareSerial> su(&Serial1, SENA, SENA);
+ SerialUpdate<HardwareSerial> su(&Serial1, SENA);
  #include <Update.h>
 #endif
 
@@ -31,7 +39,7 @@ void setup() {
     Serial1.begin(BAUDRATE, SERIAL_8N1, SRX, STX);
 #endif
   SPIFFS.begin(true);
-  //sl.receive();
+  sl.slave(SLAVE_ID);
   Serial.println("Ready!");
 }
 void loop() {
