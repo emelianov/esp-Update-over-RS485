@@ -1,3 +1,4 @@
+// Serial/RS-485 Master-Slave packet exchange protocol
 #pragma once
 #ifndef ESP8266
  #include <rom/crc.h>
@@ -16,9 +17,6 @@
 // Data transfer timeout
 #define MAX_SEND_TIME 3000
 
-//For SoftwareSerial debug
-#define ERX D1
-#define ETX D4
 
 struct packetHeader {
 	uint8_t sig[MAGIC_SIG_LENGTH];	// Packet signature
@@ -67,12 +65,13 @@ uint32_t crc32_le(uint32_t crc, const uint8_t *data, size_t length)
 
 template <typename T> class RSerial {
 public:
-	RSerial(T* serial) {
+	RSerial(T* serial, uint8_t id = 0) {
 		_serial = serial;
+		_id = id;
 	}
-	RSerial(T* serial, int16_t max485_rx, int16_t max485_tx) {
+	RSerial(T* serial, uint8_t id, int16_t max485_tx) {
 		_serial = serial;
-		_rxPin = max485_rx;
+		_id = id;
 		_txPin = max485_tx;
 		digitalWrite(_rxPin, LOW);
 	}
@@ -310,21 +309,24 @@ protected:
 			if ((_pos >= sizeof(packetHeader) && _pos >= _buf.header.dataSize + sizeof(packetHeader)) || _pos >= FRAME_LENGTH) {
 				_serial->flush();
 				_pos = 0;
-				//Serial.println();
-				if (_buf.header.dataSize >= FRAME_LENGTH) {
-					Serial.println("Too long");
-					state = RS_ERROR;
-					break;
+				if (_buf.header.id == this->_id) {
+					if (_buf.header.dataSize >= FRAME_LENGTH) {
+						Serial.println("Too long");
+						state = RS_ERROR;
+						break;
+					}
+					if (crc(&_buf) != extractCrc()) {
+						Serial.println();
+						Serial.println(extractCrc(), HEX);
+						Serial.println(crc(&_buf), HEX);
+						Serial.println("CRC error");
+						state = RS_CRC_ERROR;
+						break;
+					}
+					Serial.println("Got packet");
+				} else {
+					Serial.println("Alien packet");
 				}
-				if (crc(&_buf) != extractCrc()) {
-					Serial.println();
-					Serial.println(extractCrc(), HEX);
-					Serial.println(crc(&_buf), HEX);
-					Serial.println("CRC error");
-					state = RS_CRC_ERROR;
-					break;
-				}
-				Serial.println("Got packet");
 				state = RS_READY;
 				break;
 			}
@@ -333,13 +335,8 @@ protected:
 	}
 	status_t sending(status_t defaultState = RS_SEND) {
 		status_t state = defaultState;
-		//_serial->end();
-		//_serial->begin(38400);
-		//while (_serial->available()) _serial->read();
 		digitalWrite(_rxPin, HIGH);
 		while (_pos < sizeof(packetHeader) + _reply.header.dataSize) {
-			//if (millis() - _start > MAX_SEND_TIME)
-			//	return RS_SEND;
 			//Serial.print("s");
 			//Serial.print(_reply.raw[_pos], HEX);
 			_serial->write(_reply.raw[_pos]);

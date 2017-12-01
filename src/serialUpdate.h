@@ -7,7 +7,10 @@
  #include <Update.h>
 #endif
 
+#define ESP32_SKETCH_SIZE 1310720
+
 #define ACT_IDLE 0
+#define CANCEL_ALL 0x09
 #define GET_VERSION 0x10
 #define BEGIN_UPDATE 0x11
 #define IMAGE_DATA 0x12
@@ -20,13 +23,13 @@
 template <typename T> class SerialUpdate : public RSerial<T> {
 public:
 	String version;
-	SerialUpdate(T* serial, String ver = "") : RSerial<T>(serial) {
+	SerialUpdate(T* serial, const char* ver = "", uint8_t id = 0) : RSerial<T>(serial, id) {
 		version = ver;
 	}
-	SerialUpdate(T* serial, uint16_t rx, uint16_t tx, String ver = "") : RSerial<T>(serial, rx, tx) {
-		version = ver;
-	}
-	void begin(uint8_t slaveId = 0) {
+	//SerialUpdate(T* serial, const char* ver = "", uint8_t id = 0, uint16_t tx = 0) : RSerial<T>(serial, id, tx) {
+	//	version = ver;
+	//}
+	void begin(uint8_t slaveId = 0) {	// Initialize connection to slave
 		this->_slaveId = slaveId;
 		this->fillFrame(GET_VERSION, "GET", this->_slaveId);
 		this->send();
@@ -43,7 +46,7 @@ public:
 		this->fillFrame(END_UPDATE, lcrc, this->_slaveId);
 		this->send();
 	}
-	bool sendFile(char* name, File dataSource) {
+	bool sendFile(char* name, File dataSource) {		// Send file to slave
 		this->fillFrame(FILE_CREATE, name, this->_slaveId);
 		this->send();
 		this->_action = FILE_CREATE;
@@ -51,7 +54,7 @@ public:
 		Serial.println("Send: initiated");
 		return true;
 	}
-	bool sendUpdate(File dataSource) {
+	bool sendUpdate(File dataSource) {		// Send firmware update to slave
 		this->fillFrame(BEGIN_UPDATE, "DUMMY", this->_slaveId);
 		this->send();
 		this->_action = BEGIN_UPDATE;
@@ -59,9 +62,16 @@ public:
 		Serial.println("Update: initiated");
 		return true;
 	}
+	bool cancel() {		// Cancel current send operation
+		this->_action = ACT_IDLE;
+		if (this->_stream) {
+			this->_straem.close();
+		}
+		this->fillFrame(CANCEL_ALL, "CANCEL", this->_slaveId);
+		this->send();		
+	}
 	status_t processPacketSlave() {
 		uint32_t blockSize;
-		#define ESP32_SKETCH_SIZE 1310720
 		uint32_t sketchSpace;
 	Serial.println(this->_buf.header.command, HEX);
 		String newFileName = "";
@@ -69,6 +79,14 @@ public:
 		case GET_VERSION:
 			this->fillFrame(GET_VERSION, version.c_str());
 			this->send();
+			break;
+		case CANCEL_ALL:
+			if (this->_file) {
+				this->_file.close();
+			}
+			this->_action = ACT_IDLE;
+			this->fillFrame(C_OK, "OK");
+			this->_state = this->send();
 			break;
 		case BEGIN_UPDATE:
     		//WiFiUDP::stopAll();
