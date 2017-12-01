@@ -1,11 +1,16 @@
+//
 // Serial/RS-485 Master-Slave packet exchange protocol
+// (c)2017 Alexander Emelianov a.m.emelianov@gmail.com
+// https://github.com/emelianov/esp-Update-over-RS485
+
 #pragma once
 #ifndef ESP8266
- #include <rom/crc.h>
+ #include <rom/crc.h>	// for crc_le()
  #include <SPIFFS.h>
 #else
  #include <FS.h>
 #endif
+
 // Packet signature
 #define MAGIC_SIG {0xFF, 0xEE, 0xDD, 0xCC}
 #define MAGIC_SIG_LENGTH 4
@@ -20,7 +25,7 @@
 
 struct packetHeader {
 	uint8_t sig[MAGIC_SIG_LENGTH];	// Packet signature
-	uint8_t id;						// From/To slave ID
+	uint8_t id;						// To slave ID
 	uint8_t flags;					// Packet flags (reserved for future use)
 	uint8_t command;
 	uint16_t dataSize;				// Packet data size (Full packet size is sizeof(header) + data size + sizeof(crc32)
@@ -73,10 +78,10 @@ public:
 		_serial = serial;
 		_id = id;
 		_txPin = max485_tx;
-		digitalWrite(_rxPin, LOW);
+		digitalWrite(_txPin, LOW);
 	}
 	// Slave loop function
-	void taskSlave() {
+	status_t taskSlave() {
 		switch (_state) {
 		case RS_IDLE:
 		case RS_RECEIVE:
@@ -109,6 +114,7 @@ public:
 			//Serial.print("Unknown state: ");
 			//Serial.println(_state);
 		}
+		return _state;
 	}
 	// Master loop function
 	status_t taskMaster() {
@@ -153,10 +159,7 @@ public:
 			;
 			//Serial.println("Unknown state");
 		}
-	}
-	// Returns packet data CRC32
-	uint32_t crc(packetFrame* data) {
-		return crc32_le(0, (uint8_t*)data, data->header.dataSize - sizeof(uint32_t));
+		return _state;
 	}
 	void clean() {
 		_pos = 0;
@@ -207,9 +210,11 @@ public:
 		}
 		Serial.println();
 	}
+	// Prepare frame to send chat*
 	bool fillFrame(uint8_t com, const char* data, uint8_t slaveId = 0) {
 		return fillFrame(com, (uint8_t*)data, strlen(data), slaveId);
 	}
+	// Prepare frame to send binary data
 	bool fillFrame(uint8_t com, const uint8_t* data, uint16_t len, uint8_t slaveId = 0) {
 		if (len > FRAME_LENGTH - sizeof(packetHeader) - sizeof(uint32_t)) return false;
 		memcpy(_reply.header.sig, _sig, MAGIC_SIG_LENGTH);
@@ -223,6 +228,7 @@ public:
 		_pos = 0;
 		return true;
 	}
+	// Prepare and fill frame with file content
 	bool fillFrame(uint8_t com, File data, uint8_t slaveId = 0) {
 		memcpy(_reply.header.sig, _sig, MAGIC_SIG_LENGTH);
 		_reply.header.id = slaveId;
@@ -246,17 +252,21 @@ public:
 	}
 */
 protected:
-	uint8_t		_id = 0;
-	uint16_t	_pos = 0;
-	status_t	_state = RS_IDLE;
+	uint8_t		_id = 0;	// Slave ID
+	uint16_t	_pos = 0;	// Current sending/receiving block position
+	status_t	_state = RS_IDLE;	// Transmittion state
 	uint8_t		_sig[MAGIC_SIG_LENGTH] = MAGIC_SIG;
-	uint8_t		_retryCount = 0;
-	packetFrame	_buf;
-	packetFrame	_reply;
-	T*			_serial;
-	uint16_t	_txPin = -1;
-	uint16_t	_rxPin = -1;
-	uint32_t	_start = 0;
+	uint8_t		_retryCount = 0;	// Current sending retry count
+	packetFrame	_buf;			// Receive buffer
+	packetFrame	_reply;			// Send buffer
+	T*			_serial;	// Serial port pointer
+	uint16_t	_txPin = -1;		// RS-485 flow control pin
+	uint32_t	_start = 0;		// Current send operation start time
+
+	// Returns packet data CRC32
+	uint32_t crc(packetFrame* data) {
+		return crc32_le(0, (uint8_t*)data, data->header.dataSize - sizeof(uint32_t));
+	}
 
 	void enableSend() {
 		//digitalWrite(ERX, HIGH);//For SoftwareSerial debug

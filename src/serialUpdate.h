@@ -1,3 +1,8 @@
+//
+// Serial/RS-485 File transfer and update implementation
+// (c)2017 Alexander Emelianov a.m.emelianov@gmail.com
+// https://github.com/emelianov/esp-Update-over-RS485
+
 #pragma once
 #include <RSerial.h>
 #ifdef ESP8266
@@ -26,26 +31,31 @@ public:
 	SerialUpdate(T* serial, const char* ver = "", uint8_t id = 0) : RSerial<T>(serial, id) {
 		version = ver;
 	}
-	//SerialUpdate(T* serial, const char* ver = "", uint8_t id = 0, uint16_t tx = 0) : RSerial<T>(serial, id, tx) {
-	//	version = ver;
-	//}
+	SerialUpdate(T* serial, const char* ver = "", uint8_t id, uint16_t tx) : RSerial<T>(serial, id, tx) {
+		version = ver;
+	}
 	void begin(uint8_t slaveId = 0) {	// Initialize connection to slave
 		this->_slaveId = slaveId;
 		this->fillFrame(GET_VERSION, "GET", this->_slaveId);
 		this->send();
 	}
-	bool isReady() {
+	void slave(const char* ver = "", uint8_t id = 0) {	// Switch to slave mode
+		if (strlen(ver) > 0) this->vervion = ver;
+		if (id != 0) this->_id = id;
+		receive();
+	}
+	bool isReady() {	// if begin was success
 		return version != "";
 	}
-	void sendData() {
-		this->fillFrame(IMAGE_DATA, "DATA12345678901234567890", this->_slaveId);
-		this->send();
-	}
-	void end() {
-		uint32_t lcrc = 0xFFFFF;
-		this->fillFrame(END_UPDATE, lcrc, this->_slaveId);
-		this->send();
-	}
+	//void sendData() {
+	//	this->fillFrame(IMAGE_DATA, "DATA12345678901234567890", this->_slaveId);
+	//	this->send();
+	//}
+	//void end() {
+	//	uint32_t lcrc = 0xFFFFF;
+	//	this->fillFrame(END_UPDATE, lcrc, this->_slaveId);
+	//	this->send();
+	//}
 	bool sendFile(char* name, File dataSource) {		// Send file to slave
 		this->fillFrame(FILE_CREATE, name, this->_slaveId);
 		this->send();

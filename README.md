@@ -32,7 +32,7 @@ union packetFrame {
 class RSerial<HardwareSerrila>|<SoftwareSerial> {
 	RSerial(HardwareSerial|SoftwareSerial serial);
 	RSerial(HardwareSerial|SoftwareSerial serial, int16_t max485_tx);
-	void taskSlave();
+	status_t taskSlave();
 	status_t taskMaster();
 	void clean();
 	status_t send();
@@ -44,7 +44,7 @@ class RSerial<HardwareSerrila>|<SoftwareSerial> {
 	bool fillFrame(uint8_t com, const char* data, uint8_t slaveId = 0);
 	bool fillFrame(uint8_t com, const uint8_t* data, uint16_t len, uint8_t slaveId = 0);
 	bool fillFrame(uint8_t com, File data, uint8_t slaveId = 0);
-	template <typename R> bool fillFrame(uint8_t com, const R &data, uint8_t slaveId = 0);
+	bool fillFrame(uint8_t com, const R &data, uint8_t slaveId = 0);	// Not tested
 };
 ```
 
