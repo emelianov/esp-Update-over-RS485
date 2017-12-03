@@ -52,15 +52,7 @@ public:
 	bool isReady() {	// if begin was success
 		return version != "";
 	}
-	//void sendData() {
-	//	this->fillFrame(IMAGE_DATA, "DATA12345678901234567890", this->_slaveId);
-	//	this->send();
-	//}
-	//void end() {
-	//	uint32_t lcrc = 0xFFFFF;
-	//	this->fillFrame(END_UPDATE, lcrc, this->_slaveId);
-	//	this->send();
-	//}
+	
 	bool sendFile(char* name, File dataSource) {		// Send file to slave
 		this->fillFrame(FILE_CREATE, name, this->_slaveId);
 		this->send();
