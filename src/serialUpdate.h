@@ -39,7 +39,9 @@ public:
 	//}
 	void begin(uint8_t slaveId = 0) {	// Initialize connection to slave
 		this->_slaveId = slaveId;
+		this->_seq = 0;
 		this->fillFrame(GET_VERSION, "GET", this->_slaveId);
+		this->fillSeq();
 		this->send();
 	}
 	void slave(const char* ver = "", uint8_t id = 0) {	// Switch to slave mode

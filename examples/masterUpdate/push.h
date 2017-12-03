@@ -6,13 +6,13 @@
  #define STX D3
  #define SENA D4
  SoftwareSerial Serial1(SRX,STX); 
- SerialUpdate<SoftwareSerial> su(&Serial1, SENA, SENA);
+ SerialUpdate<SoftwareSerial> su(&Serial1, SENA);
 #else
  #define SRX 26
  #define STX 25
  #define SENA 5
  HardwareSerial Serial1(1);
- SerialUpdate<HardwareSerial> su(&Serial1, SENA, SENA);
+ SerialUpdate<HardwareSerial> su(&Serial1, SENA);
  #include <Update.h>
 #endif
 
@@ -60,8 +60,7 @@ uint32_t pushInit() {
     Serial1.begin(BAUDRATE, SERIAL_8N1, SRX, STX);
 #endif
     web->on("/push", HTTP_GET, pushHandle);//Update remote firmware
-    su.begin();
+    su.begin(1);
     taskAdd(dataExchange);
-    //taskAddWithDelay(dataSend, 5000);
     return RUN_DELETE;
 };

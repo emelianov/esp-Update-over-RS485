@@ -4,6 +4,7 @@
 // https://github.com/emelianov/esp-Update-over-RS485
 
 #pragma once
+
 #ifndef ESP8266
  #include <rom/crc.h>	// for crc_le()
  #include <SPIFFS.h>
@@ -16,7 +17,8 @@
 #define MAGIC_SIG_LENGTH 4
 // Maximim packet length
 #define FRAME_LENGTH 1024
-#define FRAME_TIME 240
+// Byte transfer delay. 250uS works for 38400 RS-485 transfer. For Serial transfer should be comment out.
+#define RS_BYTE_DELAY 250
 // Packet resend count if CRC or timeout failure
 #define MAX_RETRY_COUNT	5
 #define RESPONSE_TIMEOUT 10000
@@ -26,7 +28,7 @@
 struct packetHeader {
 	uint8_t sig[MAGIC_SIG_LENGTH];	// Packet signature
 	uint8_t id;						// To slave ID
-	uint8_t seq;					// Packet sequence #
+	uint32_t seq;					// Packet sequence #
 	uint8_t command;
 	uint16_t dataSize;				// Packet data size (Full packet size is sizeof(header) + data size + sizeof(crc32))
 };
@@ -78,7 +80,6 @@ public:
 		_serial = serial;
 		_id = id;
 		_txPin = max485_tx;
-		//digitalWrite(_txPin, LOW);
 	}
 	// Slave loop function
 	status_t taskSlave() {
@@ -92,7 +93,7 @@ public:
 			if (inSeq == 0 || _buf.header.seq == 0) {
 				inSeq = 0;
 			}
-			if (_buf.header.seq > inSeq || inSeq == 0) {
+			if (_buf.header.seq > inSeq || _buf.header.seq == 0) {
 				inSeq = _buf.header.seq;
 				processPacketSlave();
 			} else {
@@ -137,15 +138,15 @@ public:
 			break;
 		case RS_RECEIVE:
 		case RS_WAIT:
-			if (millis() - _start > MAX_SEND_TIME) {
-				_state = RS_ERROR;
+			if (millis() - _start > MAX_SEND_TIME) {	// Check if no responce on sent packet within timeout period
+				_state = RS_ERROR;		// Generate error if timeout reached
 			} else {
 				_state = receiving(RS_RECEIVE);
 			}
 			break;
 		case RS_READY:
 			if (_buf.header.command == C_BADCRC) {
-				_state = RS_ERROR;
+				_state = RS_ERROR;		// Generate error on CRC mismach
 				Serial.println("CRC Error");
 			} else {
 				_state = this->processPacketMaster();
@@ -155,7 +156,7 @@ public:
 			break;
 		case RS_ERROR:
 			_retryCount++;
-			if (_retryCount >  MAX_RETRY_COUNT) {
+			if (_retryCount >  MAX_RETRY_COUNT) {	// Retry packet send until max retry count reached
 				_retryCount = 0;
 				Serial.println("Resend filed");
 				_state = RS_FAILED;
@@ -268,6 +269,9 @@ public:
 		return fillFrame(com, (uint8_t*)data, sizeof(data));
 	}
 */
+	void fillSeq(uint32_t seqq = 0) {
+		this->_reply.header.seq = seqq;
+	}
 protected:
 	uint8_t		_id = 0;	// Slave ID
 	uint16_t	_pos = 0;	// Current sending/receiving block position
@@ -279,15 +283,15 @@ protected:
 	T*			_serial;	// Serial port pointer
 	uint16_t	_txPin = -1;		// RS-485 flow control pin
 	uint32_t	_start = 0;		// Current send operation start time
-	uint8_t	_seq = 0;	// Packet sequence #
-	uint8_t	inSeq = 0;
+	uint32_t	_seq = 0;	// Packet sequence #
+	uint32_t	inSeq = 0;	// incoming packet sequence #
 
 	// Returns packet data CRC32
 	uint32_t crc(packetFrame* data) {
 		return crc32_le(0, (uint8_t*)data, data->header.dataSize - sizeof(uint32_t));
 	}
-
-	void enableSend() {
+	
+	void enableSend() {			// Switch to sender mode for RS-485
 		if (_txPin >= 0) {
 			//_serial->flush();
 			//delay(100);
@@ -296,7 +300,8 @@ protected:
 			//delay(100);
 		}
 	}
-	void enableReceive() {
+	
+	void enableReceive() {		// Switch to receiver mode for RS-485
 		if (_txPin >= 0) {
 			//delay(10);
 			//_serial->flush();
@@ -307,7 +312,8 @@ protected:
 			//_serial->flush();
 		}
 	}
-	uint32_t extractCrc() {
+	
+	uint32_t extractCrc() {		// Returns CRC value from packet
 		uint32_t cr = _buf.raw[_buf.header.dataSize + sizeof(packetHeader) - sizeof(uint32_t) + 3];
 		cr = cr << 8;
 		cr += _buf.raw[_buf.header.dataSize + sizeof(packetHeader) - sizeof(uint32_t) + 2];
@@ -317,7 +323,8 @@ protected:
 		cr += _buf.raw[_buf.header.dataSize + sizeof(packetHeader) - sizeof(uint32_t) + 0];
 		return cr;
 	}
-	status_t receiving(status_t defaultState = RS_IDLE) {
+	
+	status_t receiving(status_t defaultState = RS_IDLE) {	// Receiving incoming data to buffer
 		enableReceive();
 		status_t state = defaultState;
 		//Serial.print(".");
@@ -337,13 +344,13 @@ protected:
 			if ((_pos >= sizeof(packetHeader) && _pos >= _buf.header.dataSize + sizeof(packetHeader)) || _pos >= FRAME_LENGTH) {
 				//_serial->flush();
 				_pos = 0;
-				if (_buf.header.id == this->_id) {
+				if (_buf.header.id == this->_id) {		// Check destination ID of packet
 					if (_buf.header.dataSize >= FRAME_LENGTH) {
 						Serial.println("Too long");
 						state = RS_ERROR;
 						break;
 					}
-					if (crc(&_buf) != extractCrc()) {
+					if (crc(&_buf) != extractCrc()) {	// Check received data CRC
 						Serial.println();
 						Serial.println(extractCrc(), HEX);
 						Serial.println(crc(&_buf), HEX);
@@ -363,7 +370,7 @@ protected:
 		}
 		return state;
 	}
-	status_t sending(status_t defaultState = RS_SEND) {
+	status_t sending(status_t defaultState = RS_SEND) {		// Send outgoing data buffer
 		while (_serial->available()) {
 			_serial->read();
 		}
@@ -373,7 +380,9 @@ protected:
 		uint16_t dSize = sizeof(packetHeader) + _reply.header.dataSize;
 		time_t startTransfer = millis();
 		while (_pos < dSize) {
-			delayMicroseconds(250);
+		#ifdef RS_BYTE_DELAY
+			delayMicroseconds(RS_BYTE_DELAY);
+		#endif
 			//Serial.print("s");
 			//Serial.print(_reply.raw[_pos], HEX);
 			_serial->write(_reply.raw[_pos]);

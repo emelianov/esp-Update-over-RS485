@@ -107,7 +107,7 @@ h4,h4{font-size:18px}\
   </head>\
   <body>\
 \
-<div class='col-xs-9'><h4>Wifi Socket Control - Maintains</h4></div>\
+<div class='col-xs-9'><h4>masterUpdate - Maintains</h4></div>\
  <div class='container'><div class='well'>\
  <b>Network settings</b>\
  <hr>\
@@ -146,7 +146,15 @@ h4,h4{font-size:18px}\
     output += filename;
     output += F("</a>&nbsp<a href='/delete?file=");
     output += filename;
-    output += F("'><font color=red>delete</font></a>");
+    output += F("'><font color=red>[delete]</font></a>");
+        output += F("&nbspRS-485:&nbsp<a href='/send?file=");
+    output += filename;
+    output += F("'>[Send file]</a>");
+    if (filename.endsWith(".bin")) {
+      output += F("&nbsp<a href='/push?file=");
+      output += filename;
+      output += F("'>[Push update]</a>");
+    }
     output += F("<br>");
     entry.close();
   }

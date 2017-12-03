@@ -4,14 +4,17 @@
 ```
 class SerialUpdate<HardwareSerial>|<SoftwareSerial> {
 	String version;
-	SerialUpdate(HardwareSerial|SoftwareSerial serial, const char* ver = "", uint8_t id = 0);
+	SerialUpdate(<HardwareSerial>|<SoftwareSerial>, uint16_t tx);
+	SerialUpdate(<HardwareSerial>|<SoftwareSerial>, const char* ver = "", uint8_t id = 0);
 	void begin(uint8_t slaveId = 0);	// Initialize connection to slave
 	bool isReady();
-	void sendData();
 	bool sendFile(char* name, File dataSource);		// Send file to slave
 	bool sendUpdate(File dataSource);		// Send firmware update to slave
 	bool cancel();		// Cancel current send operation
 }
+Loop functions:
+	status_t taskMaster();	// from RSerial
+	status_t taskSlave();	// from RSerial
 ```
 
 ## 2. Packet exchange protocol API
@@ -19,7 +22,7 @@ class SerialUpdate<HardwareSerial>|<SoftwareSerial> {
 struct packetHeader {
 	uint8_t sig[MAGIC_SIG_LENGTH];	// Packet signature
 	uint8_t id;						// From/To slave ID
-	uint8_t flags;					// Packet flags (reserved for future use)
+	uint32_t seq;					// Packet sequence #
 	uint8_t command;
 	uint16_t dataSize;				// Packet data size (Full packet size is sizeof(header) + data size + sizeof(crc32)
 };

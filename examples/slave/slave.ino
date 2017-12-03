@@ -7,20 +7,20 @@
 
 #define BAUDRATE 38400
 #define SLAVE_ID 1
-
+#define VER_ID "0.0"
 #include <serialUpdate.h>
 #ifdef ESP8266
  #define SRX D2
  #define STX D3
  #define SENA D4
  SoftwareSerial Serial1(SRX,STX); 
- SerialUpdate<SoftwareSerial> su(&Serial1, SENA);
+ SerialUpdate<SoftwareSerial> sl(&Serial1, SENA);
 #else
  #define SRX 26
  #define STX 25
  #define SENA 5
  HardwareSerial Serial1(1);
- SerialUpdate<HardwareSerial> su(&Serial1, SENA);
+ SerialUpdate<HardwareSerial> sl(&Serial1, SENA);
  #include <Update.h>
 #endif
 
@@ -39,9 +39,9 @@ void setup() {
     Serial1.begin(BAUDRATE, SERIAL_8N1, SRX, STX);
 #endif
   SPIFFS.begin(true);
-  sl.slave(SLAVE_ID);
+  sl.slave(VER_ID, SLAVE_ID);
   Serial.println("Ready!");
 }
 void loop() {
-    su.taskSlave();
+    sl.taskSlave();
 }
