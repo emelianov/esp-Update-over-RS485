@@ -27,22 +27,25 @@
 
 template <typename T> class SerialUpdate : public RSerial<T> {
 public:
-	String version;
+	String version = "";
 	SerialUpdate(T* serial, const char* ver = "", uint8_t id = 0) : RSerial<T>(serial, id) {
 		version = ver;
 	}
-	SerialUpdate(T* serial, const char* ver = "", uint8_t id, uint16_t tx) : RSerial<T>(serial, id, tx) {
-		version = ver;
+	SerialUpdate(T* serial, uint16_t tx) : RSerial<T>(serial, 0, tx) {
+		;
 	}
+	//SerialUpdate(T* serial, const char* ver = "", uint8_t id, uint16_t tx) : RSerial<T>(serial, id, tx) {
+	//	version = ver;
+	//}
 	void begin(uint8_t slaveId = 0) {	// Initialize connection to slave
 		this->_slaveId = slaveId;
 		this->fillFrame(GET_VERSION, "GET", this->_slaveId);
 		this->send();
 	}
 	void slave(const char* ver = "", uint8_t id = 0) {	// Switch to slave mode
-		if (strlen(ver) > 0) this->vervion = ver;
+		if (strlen(ver) > 0) this->version = ver;
 		if (id != 0) this->_id = id;
-		receive();
+		this->receive();
 	}
 	bool isReady() {	// if begin was success
 		return version != "";
@@ -129,6 +132,7 @@ public:
         	if(Update.end(true)){ //true to set the size to the current progress
           		Serial.printf("Update Success. \nRebooting...\n");
           		this->fillFrame(C_OK, "Update success");
+          		// Probably should put ESP.reboot() there
         	} else {
         		this->fillFrame(C_OK, "Update failed");
         	}
@@ -190,12 +194,12 @@ public:
 			Serial.println(this->_state);
 			if (this->_action == FILE_CREATE || this->_action == FILE_DATA) {
 				if (this->_stream.available()) {
-					if (this->fillFrame(FILE_DATA, this->_stream)) {
+					if (this->fillFrame(FILE_DATA, this->_stream, this->_slaveId)) {
 						this->_action = FILE_DATA;
 						this->_state = this->send();
 					}
 				} else {
-					if (this->fillFrame(FILE_CLOSE, "EOF")) {
+					if (this->fillFrame(FILE_CLOSE, "EOF", this->_slaveId)) {
 						this->_stream.close();
 						this->_action = FILE_CLOSE;
 						this->_state = this->send();
@@ -204,12 +208,12 @@ public:
 			} else if (this->_action == BEGIN_UPDATE || this->_action == IMAGE_DATA) {
 				if (this->_stream.available()) {
 					Serial.println(".");
-					if (this->fillFrame(IMAGE_DATA, this->_stream)) {
+					if (this->fillFrame(IMAGE_DATA, this->_stream, this->_slaveId)) {
 						this->_action = IMAGE_DATA;
 						this->_state = this->send();
 					}
 				} else {
-					if (this->fillFrame(END_UPDATE, "EOF")) {
+					if (this->fillFrame(END_UPDATE, "EOF", this->_slaveId)) {
 						Serial.println("End update");
 						this->_stream.close();
 						this->_action = END_UPDATE;
@@ -226,7 +230,7 @@ public:
 		return this->_state;
 	}
 private:
-	uint8_t _slaveId;
+	uint8_t _slaveId = 0;
 	uint8_t _action = ACT_IDLE;
 	File _file;
 	File _stream;

@@ -16,19 +16,19 @@
 #define MAGIC_SIG_LENGTH 4
 // Maximim packet length
 #define FRAME_LENGTH 1024
+#define FRAME_TIME 240
 // Packet resend count if CRC or timeout failure
 #define MAX_RETRY_COUNT	5
 #define RESPONSE_TIMEOUT 10000
 // Data transfer timeout
 #define MAX_SEND_TIME 3000
 
-
 struct packetHeader {
 	uint8_t sig[MAGIC_SIG_LENGTH];	// Packet signature
 	uint8_t id;						// To slave ID
-	uint8_t flags;					// Packet flags (reserved for future use)
+	uint8_t seq;					// Packet sequence #
 	uint8_t command;
-	uint16_t dataSize;				// Packet data size (Full packet size is sizeof(header) + data size + sizeof(crc32)
+	uint16_t dataSize;				// Packet data size (Full packet size is sizeof(header) + data size + sizeof(crc32))
 };
 
 #define C_OK 1
@@ -78,7 +78,7 @@ public:
 		_serial = serial;
 		_id = id;
 		_txPin = max485_tx;
-		digitalWrite(_txPin, LOW);
+		//digitalWrite(_txPin, LOW);
 	}
 	// Slave loop function
 	status_t taskSlave() {
@@ -89,19 +89,28 @@ public:
 			break;
 		case RS_READY:
 			Serial.println("READY");
-			processPacketSlave();
+			if (inSeq == 0 || _buf.header.seq == 0) {
+				inSeq = 0;
+			}
+			if (_buf.header.seq > inSeq || inSeq == 0) {
+				inSeq = _buf.header.seq;
+				processPacketSlave();
+			} else {
+				Serial.println("SEQ out of sync");
+				_state = RS_OK;
+			}
 			break;
 		case RS_OK:
 			fillFrame(C_OK,"OK");
-			send();
+			_state = send();
 			break;
 		case RS_CRC_ERROR:
 			fillFrame(C_BADCRC,"CRC");
-			send();
+			_state = send();
 			break;
 		case RS_ERROR:
 			fillFrame(C_ERROR,"ERR");
-			send();
+			_state = send();
 			break;
 		case RS_SEND:
 			_state = sending();
@@ -137,24 +146,28 @@ public:
 		case RS_READY:
 			if (_buf.header.command == C_BADCRC) {
 				_state = RS_ERROR;
-							Serial.println("Error");
+				Serial.println("CRC Error");
 			} else {
 				_state = this->processPacketMaster();
 				//_state = RS_IDLE;
-							Serial.println("Ready");
+				Serial.println("Ready");
 			}
 			break;
 		case RS_ERROR:
 			_retryCount++;
 			if (_retryCount >  MAX_RETRY_COUNT) {
+				_retryCount = 0;
+				Serial.println("Resend filed");
 				_state = RS_FAILED;
 			} else {
+			Serial.println("Resending");
 				_state = send();
 			}
 			break;
 		case RS_TIMEOUT:
 		case RS_IDLE:
 		case RS_FAILED:
+			clean();
 		default:
 			;
 			//Serial.println("Unknown state");
@@ -185,27 +198,29 @@ public:
 		return _state;
 	}
 	virtual status_t processPacketMaster() {
-		debugPrintPacket();
+		//debugPrintPacket();
 		if (_buf.header.command == C_BADCRC) {
-			Serial.println("CRC");
+			Serial.println("Bad CRC");
 			return send();
 		}
 		return RS_IDLE;
 	}
 	virtual status_t processPacketSlave() {
-		debugPrintPacket();
+		//debugPrintPacket();
 		if (_buf.header.command == C_PING) {
 			memcpy(&_reply, &_buf, _buf.header.dataSize + sizeof(packetHeader));
 			return send();
 		}
+		_state = RS_OK;
 		return RS_OK;
 	}
 	bool isIdle() {
 		return _state == RS_IDLE || _state == RS_ERROR || _state == RS_FAILED;
 	}
 	void debugPrintPacket() {
+	return;
 		for (uint8_t i = 0; i < _buf.header.dataSize; i++) {
-			Serial.print(_buf.raw[sizeof(packetHeader) + i], HEX);
+			Serial.printf("%c", (char)(_buf.raw[sizeof(packetHeader) + i]));
 			Serial.print(" ");
 		}
 		Serial.println();
@@ -219,7 +234,8 @@ public:
 		if (len > FRAME_LENGTH - sizeof(packetHeader) - sizeof(uint32_t)) return false;
 		memcpy(_reply.header.sig, _sig, MAGIC_SIG_LENGTH);
 		_reply.header.id = slaveId;
-		_reply.header.flags = 0;
+		_reply.header.seq = _seq;
+		_seq++;
 		_reply.header.command = com;
 		_reply.header.dataSize = len + sizeof(uint32_t);
 		memcpy(&_reply.raw[sizeof(packetHeader)], data, len);
@@ -232,7 +248,8 @@ public:
 	bool fillFrame(uint8_t com, File data, uint8_t slaveId = 0) {
 		memcpy(_reply.header.sig, _sig, MAGIC_SIG_LENGTH);
 		_reply.header.id = slaveId;
-		_reply.header.flags = 0;
+		_reply.header.seq = _seq;
+		_seq++;
 		_reply.header.command = com;
 		uint16_t len = sizeof(packetHeader);
 		while (data.available() && len < FRAME_LENGTH - sizeof(packetHeader) - sizeof(uint32_t)) {
@@ -262,6 +279,8 @@ protected:
 	T*			_serial;	// Serial port pointer
 	uint16_t	_txPin = -1;		// RS-485 flow control pin
 	uint32_t	_start = 0;		// Current send operation start time
+	uint8_t	_seq = 0;	// Packet sequence #
+	uint8_t	inSeq = 0;
 
 	// Returns packet data CRC32
 	uint32_t crc(packetFrame* data) {
@@ -269,25 +288,23 @@ protected:
 	}
 
 	void enableSend() {
-		//digitalWrite(ERX, HIGH);//For SoftwareSerial debug
-		//digitalWrite(ETX, HIGH);//For SoftwareSerial debug
-		//return;
 		if (_txPin >= 0) {
-			_serial->flush();
+			//_serial->flush();
+			//delay(100);
 			digitalWrite(_txPin, HIGH);
-			//digitalWrite(_rxPin, HIGH);
-			delay(100);
+			delay(20);
+			//delay(100);
 		}
 	}
 	void enableReceive() {
-		//digitalWrite(ERX, LOW);//For SoftwareSerial debug
-		//digitalWrite(ETX, LOW);//For SoftwareSerial debug
-		//return;
-		if (_rxPin >= 0) {
-			delay(10);
-			digitalWrite(_rxPin, LOW);
+		if (_txPin >= 0) {
+			//delay(10);
+			//_serial->flush();
+			//delay(200);
 			digitalWrite(_txPin, LOW);
-			_serial->flush();
+			//delay(100);
+			delay(20);
+			//_serial->flush();
 		}
 	}
 	uint32_t extractCrc() {
@@ -301,6 +318,7 @@ protected:
 		return cr;
 	}
 	status_t receiving(status_t defaultState = RS_IDLE) {
+		enableReceive();
 		status_t state = defaultState;
 		//Serial.print(".");
 		while (_serial->available()) {
@@ -317,7 +335,7 @@ protected:
 			//Serial.print(_buf.raw[_pos], HEX);
 			_pos++;
 			if ((_pos >= sizeof(packetHeader) && _pos >= _buf.header.dataSize + sizeof(packetHeader)) || _pos >= FRAME_LENGTH) {
-				_serial->flush();
+				//_serial->flush();
 				_pos = 0;
 				if (_buf.header.id == this->_id) {
 					if (_buf.header.dataSize >= FRAME_LENGTH) {
@@ -334,28 +352,38 @@ protected:
 						break;
 					}
 					Serial.println("Got packet");
+					state = RS_READY;
 				} else {
 					Serial.println("Alien packet");
+					state = RS_IDLE;
 				}
-				state = RS_READY;
+				//debugPrintPacket();
 				break;
 			}
 		}
 		return state;
 	}
 	status_t sending(status_t defaultState = RS_SEND) {
+		while (_serial->available()) {
+			_serial->read();
+		}
+		delay(20);
+		enableSend();
 		status_t state = defaultState;
-		digitalWrite(_rxPin, HIGH);
-		while (_pos < sizeof(packetHeader) + _reply.header.dataSize) {
+		uint16_t dSize = sizeof(packetHeader) + _reply.header.dataSize;
+		time_t startTransfer = millis();
+		while (_pos < dSize) {
+			delayMicroseconds(250);
 			//Serial.print("s");
 			//Serial.print(_reply.raw[_pos], HEX);
 			_serial->write(_reply.raw[_pos]);
-			//_serial->print(_reply.raw[_pos], HEX);
 			_pos++;
 		}
-		//delay(_pos);
-		digitalWrite(_rxPin, LOW);
-		_serial->flush();
+		//_serial->flush();
+		//int32_t flushTime = (500 * _pos / 1024) - (millis() - startTransfer);
+		//Serial.println(flushTime);
+		//if (flushTime > 0) delay(flushTime);
+		delay(10);
 		_pos = 0;
 		return RS_DONE;
 	}
