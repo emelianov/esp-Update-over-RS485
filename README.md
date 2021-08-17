@@ -1,4 +1,10 @@
+# The library is outdated and replaced with implementation over standard Modbus.
+
+[Firmware update over Modbus](https://github.com/emelianov/modbus-esp8266/tree/master/examples/Files)
+
 # esp-Update-over-RS485
+
+
 
 ## 1. High level API
 ```
